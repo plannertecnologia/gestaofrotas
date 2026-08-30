@@ -380,8 +380,10 @@
         </div>
         <div class="grid cols-2">
           <div class="card"><h3>Classificação de Exposição</h3><div class="cs">Quantidade de registros por classificação</div><div class="barlist" id="t_porExposicao"></div></div>
-          <div class="card"><h3>Condutores — Mais Eventos</h3><div class="cs">Top 10 por soma de eventos (frenagem + aceleração + curva + velocidade)</div>
-            <table class="mini"><thead><tr><th>Condutor</th><th>Eventos</th><th>Pontuação</th></tr></thead><tbody id="t_tabelaCondutores"></tbody></table>
+          <div class="card"><h3>Condutores</h3><div class="cs">Todos os condutores, ordenados por classificação (Referência → Baixa → Média → Alta)</div>
+            <div style="max-height:360px; overflow-y:auto;">
+              <table class="mini"><thead><tr><th>Condutor</th><th>Classificação</th><th>Eventos</th><th>Pontuação</th></tr></thead><tbody id="t_tabelaCondutores"></tbody></table>
+            </div>
           </div>
         </div>
       </div>
@@ -1645,6 +1647,14 @@ renderAll();
     const porExposicao = {};
     const eventos = { 'Frenagem':0, 'Aceleração':0, 'Curva':0, 'Velocidade':0 };
     const porCondutor = {};
+    function rankClasse(cls){
+      const c = (cls||'').toUpperCase();
+      if (c.includes('REFER')) return 0;
+      if (c.includes('BAIXA')) return 1;
+      if (c.includes('MÉDIA') || c.includes('MEDIA')) return 2;
+      if (c.includes('ALTA')) return 3;
+      return 4; // não classificado, vai por último
+    }
     data.forEach(r=>{
       const cls = r.exposure_class ? String(r.exposure_class).toUpperCase() : 'NÃO CLASSIFICADO';
       porExposicao[cls] = (porExposicao[cls]||0)+1;
@@ -1653,12 +1663,13 @@ renderAll();
       eventos['Curva'] += Number(r.hard_cornering_count)||0;
       eventos['Velocidade'] += Number(r.speeding_count)||0;
       const nome = r.driver_name || '(sem nome)';
-      if (!porCondutor[nome]) porCondutor[nome] = { eventos:0, score:0 };
+      if (!porCondutor[nome]) porCondutor[nome] = { eventos:0, score:0, classe:cls, rank: rankClasse(cls) };
       porCondutor[nome].eventos += (Number(r.hard_braking_count)||0)+(Number(r.hard_acceleration_count)||0)+(Number(r.hard_cornering_count)||0)+(Number(r.speeding_count)||0);
       porCondutor[nome].score = Math.max(porCondutor[nome].score, Number(r.score)||0);
+      if (rankClasse(cls) > porCondutor[nome].rank) { porCondutor[nome].rank = rankClasse(cls); porCondutor[nome].classe = cls; }
     });
-    const topCondutores = Object.entries(porCondutor).sort((a,b)=>b[1].eventos-a[1].eventos).slice(0,10);
-    AGG.telemetria = { total: condutoresUnicos.size, totalRegistros: data.length, porExposicao, eventos, topCondutores };
+    const listaCondutores = Object.entries(porCondutor).sort((a,b)=> a[1].rank - b[1].rank || b[1].eventos - a[1].eventos);
+    AGG.telemetria = { total: condutoresUnicos.size, totalRegistros: data.length, porExposicao, eventos, listaCondutores };
   }
 
   function renderTelemetria(){
@@ -1670,8 +1681,8 @@ renderAll();
     document.getElementById('t_curva').textContent = fmtNum(t.eventos['Curva']);
     document.getElementById('t_velocidade').textContent = fmtNum(t.eventos['Velocidade']);
     barList(document.getElementById('t_porExposicao'), t.porExposicao);
-    document.getElementById('t_tabelaCondutores').innerHTML = t.topCondutores.map(([nome,v])=>
-      `<tr><td>${nome}</td><td>${v.eventos}</td><td>${v.score}</td></tr>`).join('');
+    document.getElementById('t_tabelaCondutores').innerHTML = t.listaCondutores.map(([nome,v])=>
+      `<tr><td>${nome}</td><td>${v.classe}</td><td>${v.eventos}</td><td>${v.score}</td></tr>`).join('');
   }
 
   async function recarregarTudo(){
