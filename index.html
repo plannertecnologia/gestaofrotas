@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gestão Estratégica de Frotas | Utilities</title>
+<title>Gestão Estratégica de Frotas </title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -185,6 +185,8 @@
     <div class="navitem" data-page="km"><div class="circ">K</div>KM</div>
     <div class="navitem" data-page="abast"><div class="circ">B</div>Abast.</div>
     <div class="navitem" data-page="gov"><div class="circ">G</div>Gov.</div>
+    <div class="navitem" data-page="plano"><div class="circ">P</div>Plano</div>
+    <div class="navitem" data-page="financeiro"><div class="circ">$</div>Financ.</div>
     <div class="navitem" data-page="basenova"><div class="circ">⇧</div>Base Única</div>
     <div class="navitem" data-page="admin"><div class="circ">⚙</div>Admin</div>
   </div>
@@ -452,6 +454,67 @@
         </div>
         <div class="import-grid" id="importGrid"></div>
       </div>
+<div class="page" id="page-plano">
+  <div class="kpi-grid">
+    <div class="kpi"><div class="label">Abertas</div><div class="value" id="pa_abertas">–</div></div>
+    <div class="kpi danger"><div class="label">Atrasadas</div><div class="value" id="pa_atrasadas">–</div></div>
+    <div class="kpi warn"><div class="label">Em Andamento</div><div class="value" id="pa_andamento">–</div></div>
+    <div class="kpi teal"><div class="label">Concluídas</div><div class="value" id="pa_concluidas">–</div></div>
+  </div>
+  <div class="card" style="margin-bottom:16px;">
+    <h3>Nova ação</h3>
+    <form id="formNovaAcao" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+      <div><label style="font-size:11px;display:block;">Criticidade</label>
+        <select id="paCriticidade" style="padding:7px;"><option value="ALTA">Alta</option><option value="MEDIA">Média</option><option value="BAIXA">Baixa</option></select></div>
+      <div><label style="font-size:11px;display:block;">Obra</label><select id="paObra" style="padding:7px;"><option value="">(nenhuma)</option></select></div>
+      <div style="flex:1; min-width:180px;"><label style="font-size:11px;display:block;">Problema</label><input type="text" id="paProblema" required style="width:100%;padding:7px;border:1px solid #C9D6DE;border-radius:6px;"></div>
+      <div style="flex:1; min-width:180px;"><label style="font-size:11px;display:block;">Ação</label><input type="text" id="paAcao" required style="width:100%;padding:7px;border:1px solid #C9D6DE;border-radius:6px;"></div>
+      <div><label style="font-size:11px;display:block;">Responsável</label><input type="text" id="paResponsavel" style="padding:7px;border:1px solid #C9D6DE;border-radius:6px;"></div>
+      <div><label style="font-size:11px;display:block;">Prazo</label><input type="date" id="paPrazo" style="padding:7px;border:1px solid #C9D6DE;border-radius:6px;"></div>
+      <button class="primary" type="submit">Criar</button>
+    </form>
+    <div id="novaAcaoMsg" style="margin-top:8px;"></div>
+  </div>
+  <div class="card">
+    <h3>Ações</h3>
+    <div style="max-height:400px; overflow-y:auto;">
+      <table class="mini"><thead><tr><th>Criticidade</th><th>Obra</th><th>Problema</th><th>Ação</th><th>Responsável</th><th>Prazo</th><th>Status</th></tr></thead><tbody id="tabelaAcoes"></tbody></table>
+    </div>
+  </div>
+</div>
+<div class="page" id="page-financeiro">
+  <div class="kpi-grid">
+    <div class="kpi"><div class="label">Oportunidades</div><div class="value" id="fin_qtdOportunidades">–</div><div class="sub" id="fin_valorIdentificado">–</div></div>
+    <div class="kpi teal"><div class="label">Saving Aprovado</div><div class="value" id="fin_aprovado">–</div></div>
+    <div class="kpi navy"><div class="label">Saving Implementado</div><div class="value" id="fin_implementado">–</div></div>
+    <div class="kpi warn"><div class="label">Saving Realizado</div><div class="value" id="fin_realizado">–</div></div>
+    <div class="kpi danger"><div class="label">Custo Evitado</div><div class="value" id="fin_evitado">–</div></div>
+  </div>
+  <div class="card" style="margin-bottom:16px;">
+    <h3>Nova oportunidade</h3>
+    <form id="formNovaOportunidade" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+      <div><label style="font-size:11px;display:block;">Iniciativa</label>
+        <select id="finIniciativa" style="padding:7px;">
+          <option value="REDUCAO_FROTA">Redução de frota</option><option value="REMANEJAMENTO">Remanejamento</option>
+          <option value="FRANQUIA_KM">Franquia KM</option><option value="LOCADORAS">Locadoras</option>
+          <option value="ABASTECIMENTO">Abastecimento</option><option value="POSTOS">Postos</option>
+          <option value="MANUTENCAO">Manutenção</option><option value="TELEMETRIA">Telemetria</option><option value="OUTROS">Outros</option>
+        </select></div>
+      <div style="flex:1; min-width:200px;"><label style="font-size:11px;display:block;">Descrição</label><input type="text" id="finDescricao" style="width:100%;padding:7px;border:1px solid #C9D6DE;border-radius:6px;"></div>
+      <div><label style="font-size:11px;display:block;">Valor identificado (R$)</label><input type="number" step="0.01" id="finValorIdentificado" style="padding:7px;border:1px solid #C9D6DE;border-radius:6px;"></div>
+      <div><label style="font-size:11px;display:block;">Meta de saving (R$)</label><input type="number" step="0.01" id="finMeta" style="padding:7px;border:1px solid #C9D6DE;border-radius:6px;"></div>
+      <button class="primary" type="submit">Criar</button>
+    </form>
+    <div id="novaOportunidadeMsg" style="margin-top:8px;"></div>
+  </div>
+  <div class="card">
+    <h3>Oportunidades</h3>
+    <div class="cs">Edite os valores de meta, aprovado, implementado, realizado e custo evitado direto na tabela.</div>
+    <div style="max-height:400px; overflow-y:auto;">
+      <table class="mini"><thead><tr><th>Iniciativa</th><th>Descrição</th><th>Identificado</th><th>Meta</th><th>Aprovado</th><th>Implementado</th><th>Realizado</th><th>Evitado</th></tr></thead><tbody id="tabelaOportunidades"></tbody></table>
+    </div>
+  </div>
+</div>
 <div class="page" id="page-basenova">
   <div class="card" style="margin-bottom:16px;">
     <h3>Importar Base Consolidada (Novo)</h3>
@@ -1865,7 +1928,8 @@ renderAll();
   const PAGE_PERMISSION = {
     visao: 'page.visao_executiva', frota: 'page.frota_contratos', prev: 'page.preventiva',
     corr: 'page.corretiva', acid: 'page.acidentes', desc: 'page.descontos', km: 'page.quilometragem',
-    tel: 'page.telemetria', basenova: 'action.upload_base', admin: 'page.administracao',
+    tel: 'page.telemetria', plano: 'page.plano_acao', financeiro: 'page.financeiro',
+    basenova: 'action.upload_base', admin: 'page.administracao',
     // abast e gov não têm permissão própria cadastrada — ficam sempre visíveis por enquanto
   };
 
@@ -1885,10 +1949,150 @@ renderAll();
     });
   }
 
+  async function popularObraSelectPlano(){
+    const { data: works } = await sb.from('works').select('id,name,code').order('name');
+    const sel = document.getElementById('paObra');
+    (works||[]).forEach(w => sel.insertAdjacentHTML('beforeend', `<option value="${w.id}">${w.name||w.code}</option>`));
+  }
+
+  async function carregarAcoes(){
+    const { data, error } = await sb.from('action_plans')
+      .select('id,criticality,problem,action,responsible,due_date,status,works:work_id(name)')
+      .order('created_at', { ascending: false });
+    if (error) { console.error('plano_acao', error); return; }
+    const hoje = new Date().toISOString().slice(0,10);
+    let abertas=0, atrasadas=0, andamento=0, concluidas=0;
+    data.forEach(r=>{
+      if (r.status === 'CONCLUIDO') concluidas++;
+      else if (r.status === 'EM_ANDAMENTO') andamento++;
+      else { abertas++; if (r.due_date && r.due_date < hoje) atrasadas++; }
+    });
+    document.getElementById('pa_abertas').textContent = abertas;
+    document.getElementById('pa_atrasadas').textContent = atrasadas;
+    document.getElementById('pa_andamento').textContent = andamento;
+    document.getElementById('pa_concluidas').textContent = concluidas;
+
+    const statusOpcoes = ['PENDENTE','EM_ANDAMENTO','CONCLUIDO','CANCELADO'];
+    document.getElementById('tabelaAcoes').innerHTML = data.map(r => `
+      <tr>
+        <td>${r.criticality||'—'}</td>
+        <td>${r.works?.name || '—'}</td>
+        <td>${r.problem}</td>
+        <td>${r.action}</td>
+        <td>${r.responsible||'—'}</td>
+        <td>${r.due_date || '—'}</td>
+        <td><select data-acao="${r.id}" class="trocarStatusAcao" style="font-size:11px;">
+          ${statusOpcoes.map(s=>`<option value="${s}" ${s===r.status?'selected':''}>${s}</option>`).join('')}
+        </select></td>
+      </tr>
+    `).join('');
+
+    document.querySelectorAll('.trocarStatusAcao').forEach(sel=>{
+      sel.addEventListener('change', async () => {
+        const novoStatus = sel.value;
+        const completedAt = novoStatus === 'CONCLUIDO' ? new Date().toISOString() : null;
+        await sb.from('action_plans').update({ status: novoStatus, completed_at: completedAt, updated_by: window.currentUserId }).eq('id', sel.dataset.acao);
+        await sb.from('action_plan_history').insert({ action_plan_id: sel.dataset.acao, changed_by: window.currentUserId, new_status: novoStatus });
+        carregarAcoes();
+      });
+    });
+  }
+
+  document.getElementById('formNovaAcao')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msgEl = document.getElementById('novaAcaoMsg');
+    const { error } = await sb.from('action_plans').insert({
+      criticality: document.getElementById('paCriticidade').value,
+      work_id: document.getElementById('paObra').value || null,
+      problem: document.getElementById('paProblema').value,
+      action: document.getElementById('paAcao').value,
+      responsible: document.getElementById('paResponsavel').value || null,
+      due_date: document.getElementById('paPrazo').value || null,
+      status: 'PENDENTE',
+      created_by: window.currentUserId,
+    });
+    if (error) { msgEl.innerHTML = '❌ ' + error.message; return; }
+    msgEl.innerHTML = '✅ Ação criada.';
+    document.getElementById('formNovaAcao').reset();
+    carregarAcoes();
+  });
+
+  async function carregarOportunidades(){
+    const { data: opps } = await sb.from('financial_opportunities').select('id,initiative,description,identified_value').order('created_at',{ascending:false});
+    const { data: savings } = await sb.from('financial_savings').select('id,opportunity_id,saving_target,saving_approved,saving_implemented,saving_realized,avoided_cost');
+    const savingsByOpp = {};
+    (savings||[]).forEach(s => { savingsByOpp[s.opportunity_id] = s; });
+
+    let totalIdent=0, totalAprovado=0, totalImplementado=0, totalRealizado=0, totalEvitado=0;
+    (opps||[]).forEach(o=>{
+      totalIdent += Number(o.identified_value)||0;
+      const s = savingsByOpp[o.id] || {};
+      totalAprovado += Number(s.saving_approved)||0;
+      totalImplementado += Number(s.saving_implemented)||0;
+      totalRealizado += Number(s.saving_realized)||0;
+      totalEvitado += Number(s.avoided_cost)||0;
+    });
+    document.getElementById('fin_qtdOportunidades').textContent = (opps||[]).length;
+    document.getElementById('fin_valorIdentificado').textContent = fmtMoney(totalIdent) + ' identificado';
+    document.getElementById('fin_aprovado').textContent = fmtMoney(totalAprovado);
+    document.getElementById('fin_implementado').textContent = fmtMoney(totalImplementado);
+    document.getElementById('fin_realizado').textContent = fmtMoney(totalRealizado);
+    document.getElementById('fin_evitado').textContent = fmtMoney(totalEvitado);
+
+    document.getElementById('tabelaOportunidades').innerHTML = (opps||[]).map(o => {
+      const s = savingsByOpp[o.id] || {};
+      return `<tr>
+        <td>${o.initiative}</td><td>${o.description||'—'}</td><td>${fmtMoney(o.identified_value)}</td>
+        <td><input type="number" step="0.01" class="campoSaving" data-opp="${o.id}" data-campo="saving_target" value="${s.saving_target??''}" style="width:80px;"></td>
+        <td><input type="number" step="0.01" class="campoSaving" data-opp="${o.id}" data-campo="saving_approved" value="${s.saving_approved??''}" style="width:80px;"></td>
+        <td><input type="number" step="0.01" class="campoSaving" data-opp="${o.id}" data-campo="saving_implemented" value="${s.saving_implemented??''}" style="width:80px;"></td>
+        <td><input type="number" step="0.01" class="campoSaving" data-opp="${o.id}" data-campo="saving_realized" value="${s.saving_realized??''}" style="width:80px;"></td>
+        <td><input type="number" step="0.01" class="campoSaving" data-opp="${o.id}" data-campo="avoided_cost" value="${s.avoided_cost??''}" style="width:80px;"></td>
+      </tr>`;
+    }).join('');
+
+    document.querySelectorAll('.campoSaving').forEach(inp => {
+      inp.addEventListener('change', async () => {
+        const oppId = inp.dataset.opp, campo = inp.dataset.campo, valor = inp.value === '' ? null : Number(inp.value);
+        const existente = savingsByOpp[oppId];
+        if (existente) {
+          await sb.from('financial_savings').update({ [campo]: valor }).eq('id', existente.id);
+        } else {
+          const payload = { opportunity_id: oppId, created_by: window.currentUserId };
+          payload[campo] = valor;
+          await sb.from('financial_savings').insert(payload);
+        }
+        carregarOportunidades();
+      });
+    });
+  }
+
+  document.getElementById('formNovaOportunidade')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msgEl = document.getElementById('novaOportunidadeMsg');
+    const { data: opp, error } = await sb.from('financial_opportunities').insert({
+      initiative: document.getElementById('finIniciativa').value,
+      description: document.getElementById('finDescricao').value || null,
+      identified_value: document.getElementById('finValorIdentificado').value || null,
+      identified_at: new Date().toISOString().slice(0,10),
+      created_by: window.currentUserId,
+    }).select().single();
+    if (error) { msgEl.innerHTML = '❌ ' + error.message; return; }
+    const metaVal = document.getElementById('finMeta').value;
+    if (metaVal) {
+      await sb.from('financial_savings').insert({ opportunity_id: opp.id, saving_target: metaVal, created_by: window.currentUserId });
+    }
+    msgEl.innerHTML = '✅ Oportunidade criada.';
+    document.getElementById('formNovaOportunidade').reset();
+    carregarOportunidades();
+  });
+
   window.onLoginSuccess = () => {
     aplicarVisibilidadeMenu();
     popularFiltros().then(recarregarTudo);
     popularPapeis().then(carregarUsuarios);
+    popularObraSelectPlano().then(carregarAcoes);
+    carregarOportunidades();
   };
 })();
 </script>
