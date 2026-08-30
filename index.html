@@ -471,6 +471,28 @@
       <tbody id="tabelaUsuarios"></tbody>
     </table>
   </div>
+  <div id="modalPermissoes" style="display:none; position:fixed; inset:0; background:rgba(0,0,20,.5); z-index:900; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:12px; padding:24px; width:520px; max-height:80vh; overflow:auto;">
+      <h3 id="modalPermissoesTitulo" style="margin-bottom:14px;">Permissões e escopo</h3>
+      <div style="margin-bottom:16px;">
+        <b style="font-size:12px;">Escopo de dados (deixe em branco = sem restrição adicional nesse nível)</b>
+        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+          <select id="modalScopeCompany" style="padding:6px;font-size:12px;"><option value="">Todas as empresas</option></select>
+          <select id="modalScopeWork" style="padding:6px;font-size:12px;"><option value="">Todas as obras</option></select>
+          <select id="modalScopeCostCenter" style="padding:6px;font-size:12px;"><option value="">Todos os centros de custo</option></select>
+          <button id="btnAdicionarScope" style="font-size:11px;">+ Adicionar escopo</button>
+        </div>
+        <div id="listaScopes" style="margin-top:10px; font-size:12px;"></div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <b style="font-size:12px;">Permissões extras (além do papel)</b>
+        <div id="listaPermissoesExtras" style="margin-top:8px; display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:11.5px;"></div>
+      </div>
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button id="btnFecharModal">Fechar</button>
+      </div>
+    </div>
+  </div>
 </div>
 
     </div>
@@ -1633,6 +1655,7 @@ renderAll();
         <td>
           <button class="btnToggleStatus" data-user="${p.id}" data-status="${p.status}" style="font-size:10.5px;">${p.status==='ATIVO'?'Desativar':'Ativar'}</button>
           <button class="btnResetSenha" data-user="${p.id}" style="font-size:10.5px;">Resetar senha</button>
+          <button class="btnPermissoes" data-user="${p.id}" data-username="${p.username}" style="font-size:10.5px;">Permissões</button>
         </td>
       </tr>
     `).join('');
@@ -1663,7 +1686,92 @@ renderAll();
         alert('Senha temporária gerada: ' + result.tempPassword + '\n\nPasse essa senha para o usuário — ele será obrigado a trocar no próximo login.');
       });
     });
+    tbody.querySelectorAll('.btnPermissoes').forEach(btn => {
+      btn.addEventListener('click', () => abrirModalPermissoes(btn.dataset.user, btn.dataset.username));
+    });
   }
+
+  let scopesSelecoesCache = { companies: [], works: [], costCenters: [] };
+
+  async function abrirModalPermissoes(userId, username){
+    document.getElementById('modalPermissoesTitulo').textContent = 'Permissões e escopo — ' + username;
+    document.getElementById('modalPermissoes').style.display = 'flex';
+    document.getElementById('modalPermissoes').dataset.userId = userId;
+
+    if (!scopesSelecoesCache.companies.length) {
+      const { data: companies } = await sb.from('companies').select('id,name').order('name');
+      const { data: works } = await sb.from('works').select('id,name,code').order('name');
+      const { data: costCenters } = await sb.from('cost_centers').select('id,name,code').order('name');
+      scopesSelecoesCache = { companies: companies||[], works: works||[], costCenters: costCenters||[] };
+      const selC = document.getElementById('modalScopeCompany');
+      const selW = document.getElementById('modalScopeWork');
+      const selCC = document.getElementById('modalScopeCostCenter');
+      scopesSelecoesCache.companies.forEach(c => selC.insertAdjacentHTML('beforeend', `<option value="${c.id}">${c.name}</option>`));
+      scopesSelecoesCache.works.forEach(w => selW.insertAdjacentHTML('beforeend', `<option value="${w.id}">${w.name||w.code}</option>`));
+      scopesSelecoesCache.costCenters.forEach(cc => selCC.insertAdjacentHTML('beforeend', `<option value="${cc.id}">${cc.name||cc.code}</option>`));
+    }
+
+    await carregarScopesDoUsuario(userId);
+    await carregarPermissoesExtras(userId);
+  }
+
+  async function carregarScopesDoUsuario(userId){
+    const { data: scopes } = await sb.from('user_scopes')
+      .select('id,company_id,work_id,cost_center_id,companies(name),works(name),cost_centers(name)')
+      .eq('user_id', userId);
+    const lista = document.getElementById('listaScopes');
+    lista.innerHTML = (scopes||[]).map(s => `
+      <div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #eee;">
+        <span>${s.companies?.name || '(qualquer empresa)'} / ${s.works?.name || '(qualquer obra)'} / ${s.cost_centers?.name || '(qualquer CC)'}</span>
+        <button class="btnRemoverScope" data-scope="${s.id}" style="font-size:10px;">Remover</button>
+      </div>
+    `).join('') || '<div style="color:#999;">Nenhum escopo — usuário sem restrição adicional além do papel.</div>';
+
+    lista.querySelectorAll('.btnRemoverScope').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await sb.from('user_scopes').delete().eq('id', btn.dataset.scope);
+        carregarScopesDoUsuario(userId);
+      });
+    });
+  }
+
+  document.getElementById('btnAdicionarScope')?.addEventListener('click', async () => {
+    const userId = document.getElementById('modalPermissoes').dataset.userId;
+    const companyId = document.getElementById('modalScopeCompany').value || null;
+    const workId = document.getElementById('modalScopeWork').value || null;
+    const costCenterId = document.getElementById('modalScopeCostCenter').value || null;
+    if (!companyId && !workId && !costCenterId) { alert('Escolha ao menos um nível (empresa, obra ou centro de custo).'); return; }
+    await sb.from('user_scopes').insert({ user_id: userId, company_id: companyId, work_id: workId, cost_center_id: costCenterId });
+    carregarScopesDoUsuario(userId);
+  });
+
+  async function carregarPermissoesExtras(userId){
+    const { data: todasPermissoes } = await sb.from('permissions').select('id,code,label,category').order('category').order('label');
+    const { data: concedidas } = await sb.from('user_permissions').select('permission_id').eq('user_id', userId);
+    const concedidasSet = new Set((concedidas||[]).map(c=>c.permission_id));
+
+    const div = document.getElementById('listaPermissoesExtras');
+    div.innerHTML = (todasPermissoes||[]).map(p => `
+      <label style="display:flex; align-items:center; gap:5px;">
+        <input type="checkbox" class="chkPermissao" data-perm="${p.id}" ${concedidasSet.has(p.id)?'checked':''}>
+        ${p.label}
+      </label>
+    `).join('');
+
+    div.querySelectorAll('.chkPermissao').forEach(chk => {
+      chk.addEventListener('change', async () => {
+        if (chk.checked) {
+          await sb.from('user_permissions').insert({ user_id: userId, permission_id: chk.dataset.perm });
+        } else {
+          await sb.from('user_permissions').delete().eq('user_id', userId).eq('permission_id', chk.dataset.perm);
+        }
+      });
+    });
+  }
+
+  document.getElementById('btnFecharModal')?.addEventListener('click', () => {
+    document.getElementById('modalPermissoes').style.display = 'none';
+  });
 
   document.getElementById('formNovoUsuario')?.addEventListener('submit', async (e) => {
     e.preventDefault();
