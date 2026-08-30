@@ -181,6 +181,7 @@
     <div class="navitem" data-page="corr"><div class="circ">C</div>Corr.</div>
     <div class="navitem" data-page="acid"><div class="circ">A</div>Acid.</div>
     <div class="navitem" data-page="desc"><div class="circ">D</div>Desc.</div>
+    <div class="navitem" data-page="tel"><div class="circ">T</div>Telem.</div>
     <div class="navitem" data-page="km"><div class="circ">K</div>KM</div>
     <div class="navitem" data-page="abast"><div class="circ">B</div>Abast.</div>
     <div class="navitem" data-page="gov"><div class="circ">G</div>Gov.</div>
@@ -368,6 +369,23 @@
       </div>
 
       <!-- KM -->
+      <div class="page" id="page-tel">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="label">Condutores Monitorados</div><div class="value" id="t_total">–</div></div>
+          <div class="kpi teal"><div class="label">Registros de Telemetria</div><div class="value" id="t_registros">–</div></div>
+          <div class="kpi danger"><div class="label">Eventos de Frenagem</div><div class="value" id="t_frenagem">–</div></div>
+          <div class="kpi warn"><div class="label">Eventos de Aceleração</div><div class="value" id="t_aceleracao">–</div></div>
+          <div class="kpi"><div class="label">Eventos de Curva</div><div class="value" id="t_curva">–</div></div>
+          <div class="kpi navy"><div class="label">Excesso de Velocidade</div><div class="value" id="t_velocidade">–</div></div>
+        </div>
+        <div class="grid cols-2">
+          <div class="card"><h3>Classificação de Exposição</h3><div class="cs">Quantidade de registros por classificação</div><div class="barlist" id="t_porExposicao"></div></div>
+          <div class="card"><h3>Condutores — Mais Eventos</h3><div class="cs">Top 10 por soma de eventos (frenagem + aceleração + curva + velocidade)</div>
+            <table class="mini"><thead><tr><th>Condutor</th><th>Eventos</th><th>Pontuação</th></tr></thead><tbody id="t_tabelaCondutores"></tbody></table>
+          </div>
+        </div>
+      </div>
+
       <div class="page" id="page-km">
         <div class="kpi-grid">
           <div class="kpi"><div class="label">Veículos Monitorados</div><div class="value" id="k_total">–</div></div>
@@ -1619,12 +1637,49 @@ renderAll();
     };
   }
 
+  async function carregarDadosTelemetria(){
+    const { data, error } = await sb.from('driver_behavior')
+      .select('driver_name,hard_braking_count,hard_acceleration_count,hard_cornering_count,speeding_count,score,exposure_class');
+    if (error) { console.error('telemetria', error); return; }
+    const condutoresUnicos = new Set(data.map(r=>r.driver_name).filter(Boolean));
+    const porExposicao = {};
+    const eventos = { 'Frenagem':0, 'Aceleração':0, 'Curva':0, 'Velocidade':0 };
+    const porCondutor = {};
+    data.forEach(r=>{
+      const cls = r.exposure_class ? String(r.exposure_class).toUpperCase() : 'NÃO CLASSIFICADO';
+      porExposicao[cls] = (porExposicao[cls]||0)+1;
+      eventos['Frenagem'] += Number(r.hard_braking_count)||0;
+      eventos['Aceleração'] += Number(r.hard_acceleration_count)||0;
+      eventos['Curva'] += Number(r.hard_cornering_count)||0;
+      eventos['Velocidade'] += Number(r.speeding_count)||0;
+      const nome = r.driver_name || '(sem nome)';
+      if (!porCondutor[nome]) porCondutor[nome] = { eventos:0, score:0 };
+      porCondutor[nome].eventos += (Number(r.hard_braking_count)||0)+(Number(r.hard_acceleration_count)||0)+(Number(r.hard_cornering_count)||0)+(Number(r.speeding_count)||0);
+      porCondutor[nome].score = Math.max(porCondutor[nome].score, Number(r.score)||0);
+    });
+    const topCondutores = Object.entries(porCondutor).sort((a,b)=>b[1].eventos-a[1].eventos).slice(0,10);
+    AGG.telemetria = { total: condutoresUnicos.size, totalRegistros: data.length, porExposicao, eventos, topCondutores };
+  }
+
+  function renderTelemetria(){
+    const t = AGG.telemetria; if (!t) return;
+    document.getElementById('t_total').textContent = fmtNum(t.total);
+    document.getElementById('t_registros').textContent = fmtNum(t.totalRegistros);
+    document.getElementById('t_frenagem').textContent = fmtNum(t.eventos['Frenagem']);
+    document.getElementById('t_aceleracao').textContent = fmtNum(t.eventos['Aceleração']);
+    document.getElementById('t_curva').textContent = fmtNum(t.eventos['Curva']);
+    document.getElementById('t_velocidade').textContent = fmtNum(t.eventos['Velocidade']);
+    barList(document.getElementById('t_porExposicao'), t.porExposicao);
+    document.getElementById('t_tabelaCondutores').innerHTML = t.topCondutores.map(([nome,v])=>
+      `<tr><td>${nome}</td><td>${v.eventos}</td><td>${v.score}</td></tr>`).join('');
+  }
+
   async function recarregarTudo(){
     await Promise.all([
       carregarDadosFrota(), carregarDadosPreventivas(), carregarDadosCorretivas(),
-      carregarDadosAcidentes(), carregarDadosKm(), carregarDadosDescontos(),
+      carregarDadosAcidentes(), carregarDadosKm(), carregarDadosDescontos(), carregarDadosTelemetria(),
     ]);
-    renderVisao(); renderFrota(); renderPrev(); renderCorr(); renderAcid(); renderKm(); renderDesc(); renderGov();
+    renderVisao(); renderFrota(); renderPrev(); renderCorr(); renderAcid(); renderKm(); renderDesc(); renderGov(); renderTelemetria();
   }
 
   const ADMIN_USERS_FUNCTION_URL = 'https://ozeskcsrlqmdrenxzquz.supabase.co/functions/v1/admin-users';
@@ -1799,7 +1854,7 @@ renderAll();
   const PAGE_PERMISSION = {
     visao: 'page.visao_executiva', frota: 'page.frota_contratos', prev: 'page.preventiva',
     corr: 'page.corretiva', acid: 'page.acidentes', desc: 'page.descontos', km: 'page.quilometragem',
-    basenova: 'action.upload_base', admin: 'page.administracao',
+    tel: 'page.telemetria', basenova: 'action.upload_base', admin: 'page.administracao',
     // abast e gov não têm permissão própria cadastrada — ficam sempre visíveis por enquanto
   };
 
