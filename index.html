@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestão Estratégica de Frotas | Utilities</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
   :root{
     --navy:#00264C; --blue-dark:#0D466F; --blue:#0D83C6;
     --teal-dark:#114E52; --teal:#18686E; --cyan:#C1EEF1; --gold:#DEBA08;
@@ -118,9 +118,54 @@
   button.primary:hover{ background:var(--blue-dark); }
 
   @media(max-width:1000px){ .cols-2,.cols-3,.import-grid{grid-template-columns:1fr;} }
-</style>
+  /* Login */
+  #loginOverlay{
+    position:fixed; inset:0; background:linear-gradient(120deg,var(--navy) 0%,var(--blue-dark) 55%,var(--teal-dark) 100%);
+    display:flex; align-items:center; justify-content:center; z-index:1000;
+  }
+  #loginOverlay .box{
+    background:#fff; border-radius:14px; padding:32px 30px; width:320px; box-shadow:0 10px 40px rgba(0,0,0,.3);
+  }
+  #loginOverlay h2{ color:var(--navy); font-size:18px; margin-bottom:4px; }
+  #loginOverlay p.sub{ color:var(--muted); font-size:12px; margin-bottom:18px; }
+  #loginOverlay label{ font-size:11px; color:var(--muted); font-weight:700; display:block; margin-bottom:4px; margin-top:12px; }
+  #loginOverlay input{
+    width:100%; padding:9px 10px; border:1.5px solid #C9D6DE; border-radius:8px; font-size:13px;
+  }
+  #loginOverlay button{ width:100%; margin-top:20px; padding:10px; }
+  #loginError{ color:var(--danger); font-size:11.5px; margin-top:10px; display:none; }
+  .userpill{ display:flex; align-items:center; gap:8px; }
+  .userpill button{ background:transparent; border:1px solid rgba(255,255,255,.3); color:#fff; border-radius:6px; padding:5px 10px; font-size:11px; cursor:pointer; }
+  .userpill button:hover{ background:rgba(255,255,255,.1); }
+  </style>
 </head>
 <body>
+  <div id="loginOverlay">
+  <div class="box" id="loginBox">
+    <h2>Gestão de Frotas</h2>
+    <p class="sub">Entre com seu usuário para continuar</p>
+    <form id="loginForm">
+      <label>Usuário</label>
+      <input type="text" id="loginUsername" autocomplete="username" required>
+      <label>Senha</label>
+      <input type="password" id="loginPassword" autocomplete="current-password" required>
+      <button class="primary" type="submit">Entrar</button>
+      <div id="loginError"></div>
+    </form>
+  </div>
+  <div class="box" id="changePasswordBox" style="display:none;">
+    <h2>Troca de senha obrigatória</h2>
+    <p class="sub">Por segurança, altere sua senha para continuar.</p>
+    <form id="changePasswordForm">
+      <label>Nova senha</label>
+      <input type="password" id="newPassword" minlength="6" required>
+      <label>Confirme a nova senha</label>
+      <input type="password" id="confirmPassword" minlength="6" required>
+      <button class="primary" type="submit">Salvar e continuar</button>
+      <div id="changePasswordError"></div>
+    </form>
+  </div>
+</div>
 <div class="app">
 
   <div class="sidebar">
@@ -148,7 +193,12 @@
         <div class="pill">Obra<b>Todas</b></div>
         <div class="pill">Período<b>2026</b></div>
         <div class="pill">Atualizado<b id="lastUpdate">—</b></div>
-        <div class="badge"><span class="dot" id="statusDot"></span><span id="statusText">Dados de exemplo (bases enviadas)</span></div>
+        <div class="badge">
+          <div class="userpill" id="userPill" style="display:none;">
+  <div class="pill">Usuário<b id="userNameLabel">—</b></div>
+  <button onclick="fazerLogout()">Sair</button>
+</div>
+          <span class="dot" id="statusDot"></span><span id="statusText">Dados de exemplo (bases enviadas)</span></div>
       </div>
     </header>
 
@@ -823,6 +873,124 @@ function buildImportGrid(){
 /* ========================= INIT ========================= */
 buildImportGrid();
 renderAll();
+</script>
+<script>
+  // ⚠️ Troque os dois valores abaixo pelos que você copiou em
+  // Supabase > Project Settings > API (Project URL e anon public key)
+  const SUPABASE_URL = 'https://ozeskcsrlqmdrenxzquz.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im96ZXNrY3NybHFtZHJlbnh6cXV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwMzE4MDcsImV4cCI6MjEwMzYwNzgwN30.k_8uMhn6j2WxJ41qDJnGmlvkZDUDxzVDZtI_Arc_qCY';
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const appEl = document.querySelector('.app');
+  const loginOverlay = document.getElementById('loginOverlay');
+  const loginBox = document.getElementById('loginBox');
+  const changePasswordBox = document.getElementById('changePasswordBox');
+  const loginError = document.getElementById('loginError');
+  const changePasswordError = document.getElementById('changePasswordError');
+  const userPill = document.getElementById('userPill');
+  const userNameLabel = document.getElementById('userNameLabel');
+
+  appEl.style.display = 'none'; // esconde o app até confirmar login
+
+  async function carregarPerfilEEntrar(userId){
+    const { data: profile, error } = await sb
+      .from('profiles')
+      .select('username, full_name, must_change_password, status')
+      .eq('id', userId)
+      .single();
+
+    if (error || !profile) {
+      mostrarErroLogin('Não foi possível carregar seu perfil. Contate o administrador.');
+      await sb.auth.signOut();
+      return;
+    }
+    if (profile.status !== 'ATIVO') {
+      mostrarErroLogin('Usuário desativado. Contate o administrador.');
+      await sb.auth.signOut();
+      return;
+    }
+    if (profile.must_change_password) {
+      loginBox.style.display = 'none';
+      changePasswordBox.style.display = 'block';
+      return;
+    }
+    // login concluído
+    loginOverlay.style.display = 'none';
+    appEl.style.display = 'flex';
+    userPill.style.display = 'flex';
+    userNameLabel.textContent = profile.full_name || profile.username;
+  }
+
+  function mostrarErroLogin(msg){
+    loginError.textContent = msg;
+    loginError.style.display = 'block';
+  }
+
+  // Ao carregar a página, verifica se já existe uma sessão ativa
+  (async function checarSessaoInicial(){
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      await carregarPerfilEEntrar(session.user.id);
+    }
+  })();
+
+  document.getElementById('loginForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    loginError.style.display = 'none';
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value;
+
+    // resolve username -> email interno (função RPC criada no bloco 19_functions.sql)
+    const { data: internalEmail, error: rpcError } = await sb.rpc('get_internal_email', { p_username: username });
+
+    if (rpcError || !internalEmail) {
+      mostrarErroLogin('Usuário ou senha inválidos.');
+      return;
+    }
+
+    const { data: signInData, error: signInError } = await sb.auth.signInWithPassword({
+      email: internalEmail,
+      password: password
+    });
+
+    if (signInError) {
+      mostrarErroLogin('Usuário ou senha inválidos.');
+      return;
+    }
+
+    await carregarPerfilEEntrar(signInData.user.id);
+  });
+
+  document.getElementById('changePasswordForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    changePasswordError.style.display = 'none';
+    const novaSenha = document.getElementById('newPassword').value;
+    const confirmar = document.getElementById('confirmPassword').value;
+
+    if (novaSenha !== confirmar) {
+      changePasswordError.textContent = 'As senhas não coincidem.';
+      changePasswordError.style.display = 'block';
+      return;
+    }
+
+    const { data: userData, error: updateAuthError } = await sb.auth.updateUser({ password: novaSenha });
+    if (updateAuthError) {
+      changePasswordError.textContent = 'Erro ao alterar senha: ' + updateAuthError.message;
+      changePasswordError.style.display = 'block';
+      return;
+    }
+
+    const { data: { user } } = await sb.auth.getUser();
+    await sb.from('profiles').update({ must_change_password: false }).eq('id', user.id);
+
+    await carregarPerfilEEntrar(user.id);
+  });
+
+  async function fazerLogout(){
+    await sb.auth.signOut();
+    location.reload();
+  }
 </script>
 </body>
 </html>
