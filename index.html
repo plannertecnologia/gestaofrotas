@@ -198,7 +198,7 @@
   <div class="pill">Usuário<b id="userNameLabel">—</b></div>
   <button onclick="fazerLogout()">Sair</button>
 </div>
-          <span class="dot" id="statusDot"></span><span id="statusText">Dados de exemplo (bases enviadas)</span></div>
+          <span class="dot" id="statusDot"></span><span id="statusText"></span></div>
       </div>
     </header>
 
@@ -701,7 +701,7 @@ function renderAll(){
   renderVisao(); renderFrota(); renderPrev(); renderCorr(); renderAcid();
   renderDesc(); renderKm(); renderMultas(); renderAbast(); renderGov();
   document.getElementById('lastUpdate').textContent = new Date().toLocaleDateString('pt-BR');
-  document.getElementById('statusText').textContent = dataImported ? 'Dados importados pelo Admin' : 'Dados de exemplo (bases enviadas)';
+  document.getElementById('statusText').textContent = dataImported ? 'Dados importados pelo Admin' : '';
   document.getElementById('statusDot').classList.toggle('imported', dataImported);
 }
 
