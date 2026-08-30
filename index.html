@@ -1320,11 +1320,12 @@ renderAll();
 </script>
 <script>
 (function(){
-  // ATENÇÃO: este bloco conecta ao Supabase apenas a Visão Executiva (parte de Frota) e a página Frota.
-  // As demais páginas (Preventivas, Corretivas, Acidentes, Descontos, KM, Comportamental, Governança)
-  // ainda usam os dados fixos definidos em AGG lá em cima — serão conectadas na próxima entrega.
+  // Conecta ao Supabase: Visão Executiva, Frota, Preventivas, Corretivas, Acidentes, KM e Descontos.
+  // OBS: Descontos ainda não tem vínculo de empresa/obra/centro de custo no banco — não responde aos filtros globais.
+  // Abastecimento e Multas seguem sem base própria (dados reais ainda não existem).
 
   let filtro = { companyId: '', workId: '', costCenterId: '' };
+  const MESES_NOMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
   function topN(obj, n){ return Object.fromEntries(Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,n)); }
   function mesesRestantes(dataFim){
@@ -1341,6 +1342,14 @@ renderAll();
     if (meses <= 24) return '19-24m';
     return '25m+';
   }
+  function mesLabel(dataStr){ if(!dataStr) return '?'; return MESES_NOMES[new Date(dataStr).getUTCMonth()]; }
+  function mesNumero(dataStr){ if(!dataStr) return null; return new Date(dataStr).getUTCMonth()+1; }
+  function scopeFilterEmbedded(q){
+    if (filtro.companyId) q = q.eq('vehicles.company_id', filtro.companyId);
+    if (filtro.workId) q = q.eq('vehicles.work_id', filtro.workId);
+    if (filtro.costCenterId) q = q.eq('vehicles.cost_center_id', filtro.costCenterId);
+    return q;
+  }
 
   async function popularFiltros(){
     const { data: companies } = await sb.from('companies').select('id,name').order('name');
@@ -1355,9 +1364,9 @@ renderAll();
     (works||[]).forEach(w => selObra.insertAdjacentHTML('beforeend', `<option value="${w.id}">${w.name || w.code}</option>`));
     (costCenters||[]).forEach(cc => selCC.insertAdjacentHTML('beforeend', `<option value="${cc.id}">${cc.name || cc.code}</option>`));
 
-    selEmpresa.addEventListener('change', () => { filtro.companyId = selEmpresa.value; carregarDadosFrota(); });
-    selObra.addEventListener('change', () => { filtro.workId = selObra.value; carregarDadosFrota(); });
-    selCC.addEventListener('change', () => { filtro.costCenterId = selCC.value; carregarDadosFrota(); });
+    selEmpresa.addEventListener('change', () => { filtro.companyId = selEmpresa.value; recarregarTudo(); });
+    selObra.addEventListener('change', () => { filtro.workId = selObra.value; recarregarTudo(); });
+    selCC.addEventListener('change', () => { filtro.costCenterId = selCC.value; recarregarTudo(); });
   }
 
   async function carregarDadosFrota(){
@@ -1393,12 +1402,164 @@ renderAll();
       locadoraTop: topN(locadoraTop,8), tempoRestanteBucket: tempoBucket,
       mixTipo: topN(mixTipo,10), rastreador: topN(rastreador,8),
     };
-
-    renderVisao();
-    renderFrota();
   }
 
-  window.onLoginSuccess = () => { popularFiltros().then(carregarDadosFrota); };
+  async function carregarDadosPreventivas(){
+    let q = sb.from('preventive_maintenance_vehicles')
+      .select('status,days_overdue,vehicles!inner(fleet_type,company_id,work_id,cost_center_id,works(name))');
+    q = scopeFilterEmbedded(q);
+    const { data, error } = await q;
+    if (error) { console.error('preventivas', error); return; }
+    const total = data.length;
+    let ok=0, atencao=0, vencido=0;
+    const porObra={}, porTipo={};
+    data.forEach(r=>{
+      const s = String(r.status||'').toUpperCase();
+      if (s.includes('VENC')) vencido++;
+      else if (s.includes('ATEN')) atencao++;
+      else ok++;
+      const obra = r.vehicles?.works?.name || '(sem obra)';
+      porObra[obra] = (porObra[obra]||0)+1;
+      const tipo = r.vehicles?.fleet_type || '(sem tipo)';
+      porTipo[tipo] = (porTipo[tipo]||0)+1;
+    });
+    AGG.preventivas = {
+      total, ok, atencao, vencido,
+      porObra: topN(porObra,8), porTipo: topN(porTipo,8),
+      statusTempoOkPct: total? Math.round(1000*ok/total)/10 : 0,
+      statusMedidorOkPct: total? Math.round(1000*ok/total)/10 : 0,
+    };
+  }
+
+  async function carregarDadosCorretivas(){
+    let q = sb.from('corrective_maintenance')
+      .select('cost,days_stopped,has_evidence,workshop,service_description,occurrence_date,vehicles!inner(company_id,work_id,cost_center_id,works(name))');
+    q = scopeFilterEmbedded(q);
+    const { data, error } = await q;
+    if (error) { console.error('corretivas', error); return; }
+    const total = data.length;
+    const custoTotal = data.reduce((s,r)=>s+(Number(r.cost)||0),0);
+    const semCusto = data.filter(r=>!r.cost).length;
+    const semEvidencia = data.filter(r=>r.has_evidence===false).length;
+    const dias = data.map(r=>r.days_stopped).filter(v=>v!=null);
+    const porMes={}, custoPorObra={}, evidencia={}, topMotivo={}, oficinas={};
+    data.forEach(r=>{
+      if (r.occurrence_date){ const m = mesNumero(r.occurrence_date); porMes[m]=(porMes[m]||0)+1; }
+      const obra = r.vehicles?.works?.name || '(sem obra)';
+      custoPorObra[obra] = (custoPorObra[obra]||0) + (Number(r.cost)||0);
+      const ev = r.has_evidence ? 'SIM' : 'NÃO';
+      evidencia[ev] = (evidencia[ev]||0)+1;
+      const motivo = r.service_description || '(sem motivo)';
+      topMotivo[motivo] = (topMotivo[motivo]||0)+1;
+      const of = r.workshop || '(sem oficina)';
+      oficinas[of] = (oficinas[of]||0)+1;
+    });
+    AGG.corretivas = {
+      total, custoTotal, semCusto, diasParadoMedia: dias.length? dias.reduce((a,b)=>a+b,0)/dias.length : 0, semEvidencia,
+      porMes, custoPorObra: topN(custoPorObra,8), evidencia,
+      topMotivo: topN(topMotivo,8), oficinas: topN(oficinas,8),
+    };
+  }
+
+  async function carregarDadosAcidentes(){
+    let q = sb.from('accidents')
+      .select('cost,occurrence_date,raw_data,vehicles!inner(company_id,work_id,cost_center_id,works(name))');
+    q = scopeFilterEmbedded(q);
+    const { data, error } = await q;
+    if (error) { console.error('acidentes', error); return; }
+    const total = data.length;
+    const custoTotal = data.reduce((s,r)=>s+(Number(r.cost)||0),0);
+    const porMes={}, porObra={}, custoPorObra={}, tipoSinistro={}, frotaCiente={}, smsCiente={};
+    data.forEach(r=>{
+      if (r.occurrence_date){ const m = mesNumero(r.occurrence_date); porMes[m]=(porMes[m]||0)+1; }
+      const obra = r.vehicles?.works?.name || '(sem obra)';
+      porObra[obra] = (porObra[obra]||0)+1;
+      custoPorObra[obra] = (custoPorObra[obra]||0) + (Number(r.cost)||0);
+      const raw = r.raw_data || {};
+      const tipo = raw['TIPO DE SINISTRO'] || '(não informado)';
+      tipoSinistro[tipo] = (tipoSinistro[tipo]||0)+1;
+      const fc = raw['FROTAS UTILITIES CIENTE?'] || '(não informado)';
+      frotaCiente[fc] = (frotaCiente[fc]||0)+1;
+      const sc = raw['ENGENHEIRO DE SMS CIENTE?'] || '(não informado)';
+      smsCiente[sc] = (smsCiente[sc]||0)+1;
+    });
+    AGG.acidentes = {
+      total, custoTotal, porMes, porObra: topN(porObra,8), custoPorObra: topN(custoPorObra,8),
+      tipoSinistro: topN(tipoSinistro,8), frotaCiente, smsCiente,
+    };
+  }
+
+  async function carregarDadosKm(){
+    let q = sb.from('mileage_monthly')
+      .select('km_rodado,km_franquia,reference_month,vehicle_id,vehicles!inner(company_id,work_id,cost_center_id,works(name))');
+    q = scopeFilterEmbedded(q);
+    const { data, error } = await q;
+    if (error) { console.error('km', error); return; }
+    const total = new Set(data.map(r=>r.vehicle_id)).size;
+    const porMes={}, veiculosInformadoPorMes={};
+    let leiturasInvalidas=0;
+    data.forEach(r=>{
+      const label = mesLabel(r.reference_month);
+      const km = Number(r.km_rodado)||0;
+      if (km < 0) { leiturasInvalidas++; return; }
+      porMes[label] = (porMes[label]||0) + km;
+      if (km > 0) veiculosInformadoPorMes[label] = (veiculosInformadoPorMes[label]||0) + 1;
+    });
+    const ultimaData = data.reduce((max,r)=> (!max || (r.reference_month && r.reference_month > max)) ? r.reference_month : max, null);
+    const doUltimoMes = data.filter(r=>r.reference_month === ultimaData);
+    const ultimoMesPorObra = {};
+    let acimaContrato = 0, comInformadoUltimoMes = 0;
+    doUltimoMes.forEach(r=>{
+      const obra = r.vehicles?.works?.name || '(sem obra)';
+      const km = Number(r.km_rodado)||0;
+      ultimoMesPorObra[obra] = (ultimoMesPorObra[obra]||0) + km;
+      if (km > 0) comInformadoUltimoMes++;
+      if (r.km_franquia && km > Number(r.km_franquia)) acimaContrato++;
+    });
+    AGG.km = {
+      total, porMes, veiculosInformadoPorMes,
+      ultimoMesPorObra: topN(ultimoMesPorObra,8),
+      leiturasInvalidas, acimaContrato, comInformadoUltimoMes,
+    };
+  }
+
+  async function carregarDadosDescontos(){
+    const { data, error } = await sb.from('discounts').select('employee_name,amount,occurrence_date,funnel_stage,raw_data');
+    if (error) { console.error('descontos', error); return; }
+    const total = data.length;
+    const valorTotal = data.reduce((s,r)=>s+(Number(r.amount)||0),0);
+    const porMes={}, porObra={}, enviadoRh={}, motivoTop={};
+    const porColab={};
+    data.forEach(r=>{
+      const raw = r.raw_data || {};
+      if (r.occurrence_date){ const m = mesNumero(r.occurrence_date); porMes[m]=(porMes[m]||0)+(Number(r.amount)||0); }
+      const obra = raw['OBRA'] || '(sem obra)';
+      porObra[obra] = (porObra[obra]||0) + (Number(r.amount)||0);
+      const rh = raw['ENVIADO AO RH'] || '(não informado)';
+      enviadoRh[rh] = (enviadoRh[rh]||0)+1;
+      const motivo = raw['MOTIVO DESCONTO'] || '(não informado)';
+      motivoTop[motivo] = (motivoTop[motivo]||0)+1;
+      const nome = r.employee_name || '(sem nome)';
+      if (!porColab[nome]) porColab[nome] = {qtd:0, valor:0};
+      porColab[nome].qtd++;
+      porColab[nome].valor += (Number(r.amount)||0);
+    });
+    const topColab = Object.entries(porColab).sort((a,b)=>b[1].valor-a[1].valor).slice(0,10).map(([nome,v])=>({nome,qtd:v.qtd,valor:v.valor}));
+    AGG.descontos = {
+      total, valorTotal, porMes, porObra: topN(porObra,8),
+      enviadoRh, motivoTop: topN(motivoTop,6), topColab,
+    };
+  }
+
+  async function recarregarTudo(){
+    await Promise.all([
+      carregarDadosFrota(), carregarDadosPreventivas(), carregarDadosCorretivas(),
+      carregarDadosAcidentes(), carregarDadosKm(), carregarDadosDescontos(),
+    ]);
+    renderVisao(); renderFrota(); renderPrev(); renderCorr(); renderAcid(); renderKm(); renderDesc(); renderGov();
+  }
+
+  window.onLoginSuccess = () => { popularFiltros().then(recarregarTudo); };
 })();
 </script>
 </body>
