@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gestão Estratégica de Frotas </title>
+<title>Gestão Estratégica de Frotas | Utilities</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -207,10 +207,6 @@
           <select id="filtroObra" class="filtroselect"><option value="">Todas</option></select>
         </div>
         <div class="pill filterpill">
-          <span>Centro de Custo</span>
-          <select id="filtroCC" class="filtroselect"><option value="">Todos</option></select>
-        </div>
-        <div class="pill filterpill">
           <span>Mês (2026)</span>
           <select id="filtroMes" class="filtroselect">
             <option value="">Todos</option>
@@ -229,6 +225,10 @@
           <span class="dot" id="statusDot"></span><span id="statusText"></span></div>
       </div>
     </header>
+    <div id="filtroAtivoInfo" style="display:none; background:#EAF4F8; border-bottom:1px solid #C9D6DE; padding:8px 32px; font-size:12px; color:var(--navy); align-items:center; gap:10px;">
+      <span id="filtroAtivoTexto"></span>
+      <button id="btnLimparFiltroChart" class="primary" style="padding:3px 10px; font-size:11px;">Limpar</button>
+    </div>
 
     <div class="content" id="contentArea">
 
@@ -302,9 +302,12 @@
           <div class="kpi danger"><div class="label">Sem Evidência</div><div class="value" id="c_semEvidencia">–</div></div>
         </div>
         <div class="grid cols-3">
-          <div class="card"><h3>Paradas por Mês</h3><div class="chart-wrap" id="c_mesWrap"><canvas id="c_chartMes"></canvas></div></div>
-          <div class="card"><h3>Custo por Obra</h3><div class="barlist" id="c_custoPorObra"></div></div>
+          <div class="card"><h3>Paradas por Mês</h3><div class="cs">Clique numa barra para filtrar por esse mês</div><div class="chart-wrap" id="c_mesWrap"><canvas id="c_chartMes"></canvas></div></div>
+          <div class="card"><h3>Custo por Obra</h3><div class="cs">Clique numa obra para filtrar por ela</div><div class="barlist" id="c_custoPorObra"></div></div>
           <div class="card"><h3>Evidência de Manutenção</h3><div class="chart-wrap" id="c_evWrap"><canvas id="c_chartEv"></canvas></div></div>
+        </div>
+        <div class="grid cols-2">
+          <div class="card"><h3>Custo por Mês</h3><div class="cs">Clique numa barra para filtrar por esse mês</div><div class="chart-wrap" id="c_custoMesWrap"><canvas id="c_chartCustoMes"></canvas></div></div>
         </div>
         <div class="grid cols-2">
           <div class="card"><h3>Principais Motivos</h3><div class="barlist" id="c_motivos"></div></div>
@@ -321,9 +324,12 @@
           <div class="kpi navy"><div class="label">SMS Ciente</div><div class="value" id="a_smsCiente">–</div></div>
         </div>
         <div class="grid cols-3">
-          <div class="card"><h3>Acidentes por Mês</h3><div class="chart-wrap" id="a_mesWrap"><canvas id="a_chartMes"></canvas></div></div>
-          <div class="card"><h3>Quantidade por Obra</h3><div class="barlist" id="a_porObra"></div></div>
-          <div class="card"><h3>Custo por Obra</h3><div class="barlist" id="a_custoPorObra"></div></div>
+          <div class="card"><h3>Acidentes por Mês</h3><div class="cs">Clique numa barra para filtrar por esse mês</div><div class="chart-wrap" id="a_mesWrap"><canvas id="a_chartMes"></canvas></div></div>
+          <div class="card"><h3>Quantidade por Obra</h3><div class="cs">Clique numa obra para filtrar por ela</div><div class="barlist" id="a_porObra"></div></div>
+          <div class="card"><h3>Custo por Obra</h3><div class="cs">Clique numa obra para filtrar por ela</div><div class="barlist" id="a_custoPorObra"></div></div>
+        </div>
+        <div class="grid cols-2">
+          <div class="card"><h3>Custo por Mês</h3><div class="cs">Clique numa barra para filtrar por esse mês</div><div class="chart-wrap" id="a_custoMesWrap"><canvas id="a_chartCustoMes"></canvas></div></div>
         </div>
         <div class="grid cols-2">
           <div class="card"><h3>Tipos de Sinistro</h3><div class="barlist" id="a_tipoSinistro"></div></div>
@@ -602,8 +608,14 @@ function barList(el, dataObj, opts={}){
     const w = Math.max(4, Math.round(100*v/max));
     const color = opts.color || PAL[i%PAL.length];
     const val = opts.money ? fmtMoneyShort(v) : fmtNum(v);
-    return `<div class="row"><div class="name" title="${k}">${k}</div><div class="track"><div class="fill" style="width:${w}%;background:${color}"></div></div><div class="num">${val}</div></div>`;
+    const attrs = opts.clickable ? `style="cursor:pointer;" data-key="${k}"` : '';
+    return `<div class="row" ${attrs}><div class="name" title="${k}">${k}</div><div class="track"><div class="fill" style="width:${w}%;background:${color}"></div></div><div class="num">${val}</div></div>`;
   }).join('');
+  if (opts.clickable) {
+    el.querySelectorAll('.row[data-key]').forEach(row => {
+      row.addEventListener('click', () => opts.onClick && opts.onClick(row.dataset.key));
+    });
+  }
 }
 
 /* ========================= DADOS BASE (das planilhas enviadas hoje) ========================= */
@@ -693,7 +705,7 @@ function renderVisao(){
   document.getElementById('v_descValor').textContent = fmtMoneyShort(d.valorTotal);
   document.getElementById('v_descQtd').textContent = d.total+' registros';
 
-  barList(document.getElementById('v_frotaPorObra'), f.porObraQtd);
+  barList(document.getElementById('v_frotaPorObra'), f.porObraQtd, {clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
   barList(document.getElementById('v_locadoras'), f.locadoraTop);
 
   const semEvPct = pct(c.semEvidencia, c.total);
@@ -727,8 +739,8 @@ function renderFrota(){
   document.getElementById('f_qtd').textContent = fmtNum(f.total);
   document.getElementById('f_custoMensal').textContent = fmtMoneyShort(f.custoMensal);
   document.getElementById('f_custoMedio').textContent = fmtMoneyShort(f.custoMedio);
-  barList(document.getElementById('f_qtdPorObra'), f.porObraQtd);
-  barList(document.getElementById('f_custoPorObra'), f.porObraCusto, {money:true});
+  barList(document.getElementById('f_qtdPorObra'), f.porObraQtd, {clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
+  barList(document.getElementById('f_custoPorObra'), f.porObraCusto, {money:true, clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
   barList(document.getElementById('f_locadoras'), f.locadoraTop);
   barList(document.getElementById('f_rastreador'), f.rastreador);
   mkChart('f_chartTempo', {type:'bar', data:{labels:Object.keys(f.tempoRestanteBucket), datasets:[{data:Object.values(f.tempoRestanteBucket), backgroundColor:COLORS.gold, borderRadius:5}]},
@@ -746,7 +758,7 @@ function renderPrev(){
   document.getElementById('p_atencao').textContent = fmtNum(p.atencao); document.getElementById('p_atencaoPct').textContent = pct(p.atencao,p.total)+'% do total';
   document.getElementById('p_statusTempoPct').textContent = p.statusTempoOkPct+'%';
   document.getElementById('p_statusMedidorPct').textContent = p.statusMedidorOkPct+'%';
-  barList(document.getElementById('p_porObra'), p.porObra);
+  barList(document.getElementById('p_porObra'), p.porObra, {clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
   barList(document.getElementById('p_porTipo'), p.porTipo);
   mkChart('p_chartStatus', {type:'doughnut', data:{labels:['Em dia','Atenção','Vencido'], datasets:[{data:[p.ok,p.atencao,p.vencido], backgroundColor:[COLORS.teal,COLORS.gold,COLORS.danger], borderColor:'#fff', borderWidth:3}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{boxWidth:9}}}}});
@@ -761,12 +773,16 @@ function renderCorr(){
   document.getElementById('c_semCusto').textContent = fmtNum(c.semCusto);
   document.getElementById('c_diasParado').textContent = c.diasParadoMedia.toFixed(1)+' dias';
   document.getElementById('c_semEvidencia').textContent = fmtNum(c.semEvidencia);
-  barList(document.getElementById('c_custoPorObra'), c.custoPorObra, {money:true});
+  barList(document.getElementById('c_custoPorObra'), c.custoPorObra, {money:true, clickable:true, onClick: (obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
   barList(document.getElementById('c_motivos'), c.topMotivo);
   barList(document.getElementById('c_oficinas'), c.oficinas);
   const meses = Object.keys(c.porMes).sort((a,b)=>a-b);
   mkChart('c_chartMes', {type:'bar', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>c.porMes[m]), backgroundColor:COLORS.blue, borderRadius:5}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}}}});
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}},
+      onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroMes) window.aplicarFiltroMes(meses[els[0].index]); }}});
+  mkChart('c_chartCustoMes', {type:'bar', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>c.custoPorMes?.[m]||0), backgroundColor:COLORS.teal, borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}},
+      onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroMes) window.aplicarFiltroMes(meses[els[0].index]); }}});
   mkChart('c_chartEv', {type:'doughnut', data:{labels:Object.keys(c.evidencia), datasets:[{data:Object.values(c.evidencia), backgroundColor:[COLORS.teal,COLORS.danger,COLORS.blue,COLORS.muted], borderColor:'#fff', borderWidth:3}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}}}}});
 }
@@ -778,12 +794,16 @@ function renderAcid(){
   document.getElementById('a_custo').textContent = fmtMoneyShort(a.custoTotal);
   document.getElementById('a_frotaCiente').textContent = pct(a.frotaCiente['SIM']||0, a.total)+'%';
   document.getElementById('a_smsCiente').textContent = pct(a.smsCiente['SIM']||0, a.total)+'%';
-  barList(document.getElementById('a_porObra'), a.porObra);
-  barList(document.getElementById('a_custoPorObra'), a.custoPorObra, {money:true});
+  barList(document.getElementById('a_porObra'), a.porObra, {clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
+  barList(document.getElementById('a_custoPorObra'), a.custoPorObra, {money:true, clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
   barList(document.getElementById('a_tipoSinistro'), a.tipoSinistro);
   const meses = Object.keys(a.porMes).sort((x,y)=>x-y);
   mkChart('a_chartMes', {type:'bar', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>a.porMes[m]), backgroundColor:COLORS.danger, borderRadius:5}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}}}});
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}},
+      onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroMes) window.aplicarFiltroMes(meses[els[0].index]); }}});
+  mkChart('a_chartCustoMes', {type:'bar', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>a.custoPorMes?.[m]||0), backgroundColor:COLORS.navy, borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}},
+      onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroMes) window.aplicarFiltroMes(meses[els[0].index]); }}});
   mkChart('a_chartCiente', {type:'doughnut', data:{labels:Object.keys(a.frotaCiente), datasets:[{data:Object.values(a.frotaCiente), backgroundColor:[COLORS.teal,COLORS.danger], borderColor:'#fff', borderWidth:3}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom'}}}});
 }
@@ -818,7 +838,7 @@ function renderKm(){
   document.getElementById('k_comInformado').textContent = fmtNum(k.comInformadoUltimoMes);
   document.getElementById('k_acimaContrato').textContent = fmtNum(k.acimaContrato);
   document.getElementById('k_invalidas').textContent = fmtNum(k.leiturasInvalidas);
-  barList(document.getElementById('k_porObra'), k.ultimoMesPorObra);
+  barList(document.getElementById('k_porObra'), k.ultimoMesPorObra, {clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
   mkChart('k_chartMes', {type:'line', data:{labels:mesesK, datasets:[{data:Object.values(k.porMes), borderColor:COLORS.blue, backgroundColor:COLORS.blue, tension:.3}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
   mkChart('k_chartVqtd', {type:'bar', data:{labels:mesesK, datasets:[{data:Object.values(k.veiculosInformadoPorMes), backgroundColor:COLORS.teal, borderRadius:5}]},
@@ -1461,6 +1481,49 @@ renderAll();
   // Abastecimento e Multas seguem sem base própria (dados reais ainda não existem).
 
   let filtro = { companyId: '', workId: '', costCenterId: '', mes: '' };
+  window.__worksByName = window.__worksByName || {};
+
+  function atualizarFiltroAtivoInfo(){
+    const partes = [];
+    if (filtro.workId) {
+      const nome = Object.keys(window.__worksByName).find(k => window.__worksByName[k] === filtro.workId);
+      partes.push('Obra: ' + (nome || filtro.workId));
+    }
+    if (filtro.mes) {
+      const nomesMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+      partes.push('Mês: ' + nomesMes[Number(filtro.mes)-1]);
+    }
+    const info = document.getElementById('filtroAtivoInfo');
+    if (partes.length) {
+      document.getElementById('filtroAtivoTexto').textContent = 'Filtrando por — ' + partes.join(' | ');
+      info.style.display = 'flex';
+    } else {
+      info.style.display = 'none';
+    }
+  }
+
+  window.aplicarFiltroMes = function(mes){
+    filtro.mes = String(mes);
+    document.getElementById('filtroMes').value = String(mes);
+    atualizarFiltroAtivoInfo();
+    recarregarTudo();
+  };
+  window.aplicarFiltroObra = function(nomeObra){
+    const id = window.__worksByName[nomeObra];
+    if (!id) return;
+    filtro.workId = id;
+    document.getElementById('filtroObra').value = id;
+    atualizarFiltroAtivoInfo();
+    recarregarTudo();
+  };
+
+  document.getElementById('btnLimparFiltroChart')?.addEventListener('click', () => {
+    filtro.workId = ''; filtro.mes = '';
+    document.getElementById('filtroObra').value = '';
+    document.getElementById('filtroMes').value = '';
+    atualizarFiltroAtivoInfo();
+    recarregarTudo();
+  });
   const MESES_NOMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
   function topN(obj, n){ return Object.fromEntries(Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,n)); }
@@ -1483,7 +1546,6 @@ renderAll();
   function scopeFilterEmbedded(q){
     if (filtro.companyId) q = q.eq('vehicles.company_id', filtro.companyId);
     if (filtro.workId) q = q.eq('vehicles.work_id', filtro.workId);
-    if (filtro.costCenterId) q = q.eq('vehicles.cost_center_id', filtro.costCenterId);
     return q;
   }
   function monthRange(){
@@ -1498,27 +1560,24 @@ renderAll();
   async function popularFiltros(){
     const { data: companies } = await sb.from('companies').select('id,name').order('name');
     const { data: works } = await sb.from('works').select('id,name,code').order('name');
-    const { data: costCenters } = await sb.from('cost_centers').select('id,name,code').order('name');
-
     const selEmpresa = document.getElementById('filtroEmpresa');
     const selObra = document.getElementById('filtroObra');
-    const selCC = document.getElementById('filtroCC');
 
     (companies||[]).forEach(c => selEmpresa.insertAdjacentHTML('beforeend', `<option value="${c.id}">${c.name}</option>`));
-    (works||[]).forEach(w => selObra.insertAdjacentHTML('beforeend', `<option value="${w.id}">${w.name || w.code}</option>`));
-    (costCenters||[]).forEach(cc => selCC.insertAdjacentHTML('beforeend', `<option value="${cc.id}">${cc.name || cc.code}</option>`));
+    (works||[]).forEach(w => {
+      selObra.insertAdjacentHTML('beforeend', `<option value="${w.id}">${w.name || w.code}</option>`);
+      window.__worksByName[w.name || w.code] = w.id;
+    });
 
-    selEmpresa.addEventListener('change', () => { filtro.companyId = selEmpresa.value; recarregarTudo(); });
-    selObra.addEventListener('change', () => { filtro.workId = selObra.value; recarregarTudo(); });
-    selCC.addEventListener('change', () => { filtro.costCenterId = selCC.value; recarregarTudo(); });
-    document.getElementById('filtroMes').addEventListener('change', (e) => { filtro.mes = e.target.value; recarregarTudo(); });
+    selEmpresa.addEventListener('change', () => { filtro.companyId = selEmpresa.value; atualizarFiltroAtivoInfo(); recarregarTudo(); });
+    selObra.addEventListener('change', () => { filtro.workId = selObra.value; atualizarFiltroAtivoInfo(); recarregarTudo(); });
+    document.getElementById('filtroMes').addEventListener('change', (e) => { filtro.mes = e.target.value; atualizarFiltroAtivoInfo(); recarregarTudo(); });
   }
 
   async function carregarDadosFrota(){
     let q = sb.from('vehicles').select('vehicle_id,plate,fleet_type,renter,monthly_cost,tracker_provider,contract_end,work_id,cost_center_id,works(name)');
     if (filtro.companyId) q = q.eq('company_id', filtro.companyId);
     if (filtro.workId) q = q.eq('work_id', filtro.workId);
-    if (filtro.costCenterId) q = q.eq('cost_center_id', filtro.costCenterId);
     const { data: vehicles, error } = await q;
     if (error) { console.error('Erro ao carregar frota:', error); return; }
 
@@ -1589,9 +1648,13 @@ renderAll();
     const semCusto = data.filter(r=>!r.cost).length;
     const semEvidencia = data.filter(r=>r.has_evidence===false).length;
     const dias = data.map(r=>r.days_stopped).filter(v=>v!=null);
-    const porMes={}, custoPorObra={}, evidencia={}, topMotivo={}, oficinas={};
+    const porMes={}, custoPorMes={}, custoPorObra={}, evidencia={}, topMotivo={}, oficinas={};
     data.forEach(r=>{
-      if (r.occurrence_date){ const m = mesNumero(r.occurrence_date); porMes[m]=(porMes[m]||0)+1; }
+      if (r.occurrence_date){
+        const m = mesNumero(r.occurrence_date);
+        porMes[m]=(porMes[m]||0)+1;
+        custoPorMes[m]=(custoPorMes[m]||0)+(Number(r.cost)||0);
+      }
       const obra = r.vehicles?.works?.name || '(sem obra)';
       custoPorObra[obra] = (custoPorObra[obra]||0) + (Number(r.cost)||0);
       const ev = r.has_evidence ? 'SIM' : 'NÃO';
@@ -1603,7 +1666,7 @@ renderAll();
     });
     AGG.corretivas = {
       total, custoTotal, semCusto, diasParadoMedia: dias.length? dias.reduce((a,b)=>a+b,0)/dias.length : 0, semEvidencia,
-      porMes, custoPorObra: topN(custoPorObra,8), evidencia,
+      porMes, custoPorMes, custoPorObra: topN(custoPorObra,8), evidencia,
       topMotivo: topN(topMotivo,8), oficinas: topN(oficinas,8),
     };
   }
@@ -1618,9 +1681,13 @@ renderAll();
     if (error) { console.error('acidentes', error); return; }
     const total = data.length;
     const custoTotal = data.reduce((s,r)=>s+(Number(r.cost)||0),0);
-    const porMes={}, porObra={}, custoPorObra={}, tipoSinistro={}, frotaCiente={}, smsCiente={};
+    const porMes={}, custoPorMes={}, porObra={}, custoPorObra={}, tipoSinistro={}, frotaCiente={}, smsCiente={};
     data.forEach(r=>{
-      if (r.occurrence_date){ const m = mesNumero(r.occurrence_date); porMes[m]=(porMes[m]||0)+1; }
+      if (r.occurrence_date){
+        const m = mesNumero(r.occurrence_date);
+        porMes[m]=(porMes[m]||0)+1;
+        custoPorMes[m]=(custoPorMes[m]||0)+(Number(r.cost)||0);
+      }
       const obra = r.vehicles?.works?.name || '(sem obra)';
       porObra[obra] = (porObra[obra]||0)+1;
       custoPorObra[obra] = (custoPorObra[obra]||0) + (Number(r.cost)||0);
@@ -1633,7 +1700,7 @@ renderAll();
       smsCiente[sc] = (smsCiente[sc]||0)+1;
     });
     AGG.acidentes = {
-      total, custoTotal, porMes, porObra: topN(porObra,8), custoPorObra: topN(custoPorObra,8),
+      total, custoTotal, porMes, custoPorMes, porObra: topN(porObra,8), custoPorObra: topN(custoPorObra,8),
       tipoSinistro: topN(tipoSinistro,8), frotaCiente, smsCiente,
     };
   }
