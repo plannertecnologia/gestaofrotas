@@ -992,5 +992,285 @@ renderAll();
     location.reload();
   }
 </script>
+<script>
+(function(){
+  const EDGE_FUNCTION_URL = 'https://ozeskcsrlqmdrenxzquz.supabase.co/functions/v1/import-consolidada';
+  let ultimoArquivo = null;
+  let ultimosModulos = null;
+
+  function normPlate(p){
+    if(!p) return null;
+    return String(p).trim().toUpperCase().replace(/[\s-]/g,'');
+  }
+  function excelDateToISO(v){
+    if(v === null || v === undefined || v === '') return null;
+    if (typeof v === 'number') {
+      const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+      return isNaN(d.getTime()) ? null : d.toISOString().slice(0,10);
+    }
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d.toISOString().slice(0,10);
+  }
+  function toBool(v){ return /sim|true|1/i.test(String(v||'')); }
+  function toNum(v){ const n = Number(v); return isNaN(n) ? null : n; }
+  function mapFleetType(v){
+    const s = String(v||'').toUpperCase();
+    if (s.includes('PESAD')) return 'PESADA';
+    if (s.includes('LEVE')) return 'LEVE';
+    if (s.includes('FURG')) return 'FURGAO';
+    if (s.includes('UTILIT')) return 'UTILITARIO';
+    return null;
+  }
+
+  async function computeFileHash(file){
+    const buf = await file.arrayBuffer();
+    const hashBuf = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(hashBuf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  function sheetRows(wb, sheetName){
+    const ws = wb.Sheets[sheetName];
+    if (!ws) return null;
+    return XLSX.utils.sheet_to_json(ws, { defval: null });
+  }
+
+  // ---------- Parsers com os nomes REAIS de coluna do BASE_CONSOLIDADA.xlsx ----------
+
+  function parseFrota(rows){
+    return rows.map(r => ({
+      raw_plate: r['PLACA'],
+      plate: normPlate(r['PLACA']),
+      model: r['MODELO'],
+      renter: r['LOCADORA'],
+      fleet_type: mapFleetType(r['TIPO DE FROTA (LEVE, PESADO, FURGÃO OU UTILITÁRIO)']),
+      has_tracker: toBool(r['RASTREADOR']),
+      contract_start: excelDateToISO(r['DATA DE ENTREGA']),
+      contract_end: excelDateToISO(r['FIM DO CONTRATO']),
+      cost_center_text: r['CENTRO DE CUSTO'],
+      obra_text: r['OBRA'],
+      raw_data: r,
+    })).filter(v => v.plate);
+  }
+
+  function parseAcidentes(rows){
+    return rows.map(r => {
+      const resp = String(r['RESPONSÁVEL PELO ACIDENTE/SINISTRO']||'').toUpperCase();
+      return {
+        raw_plate: r['PLACA'],
+        occurrence_date: excelDateToISO(r['DATA DO ACIDENTE/SINISTRO']),
+        company_responsibility: resp.includes('EMPRESA'),
+        third_party_responsibility: resp.includes('TERCEIRO'),
+        // avoidable / high_potential / has_victim / near_miss: a planilha não tem essas colunas hoje.
+        // Ficam null (não inventamos) — se o cliente vier a preencher, é só mapear aqui depois.
+        cost: toNum(r['CUSTO DE REPARO']),
+        description: r['DETALHAMENTO DO OCORRIDO'],
+        raw_data: r,
+      };
+    }).filter(v => v.raw_plate);
+  }
+
+  function parseCorretivas(rows){
+    return rows.map(r => ({
+      raw_plate: r['PLACA'],
+      occurrence_date: excelDateToISO(r['DATA QUE O VEICULO PAROU']),
+      workshop: r['NOME DA OFICINA'],
+      service_description: r['MOTIVO MANUTENÇÃO (PEÇA)'],
+      cost: toNum(r['CUSTO DE REPARO']) ?? toNum(r['CUSTO ORIGINAL ']),
+      days_stopped: toNum(r['DIAS PARADO']),
+      has_evidence: toBool(r['TEM EVIDENCIA DA MANUTENÇÃO']),
+      raw_data: r,
+    })).filter(v => v.raw_plate);
+  }
+
+  function parsePreventivasVeiculos(rows){
+    return rows.map(r => ({
+      raw_plate: r['PLACA'],
+      control_type: 'GERAL',
+      scheduled_date: excelDateToISO(r['DT DA PROXIMA PREVENTIVA']),
+      scheduled_km: toNum(r['KM DA PROXIMA PREVENTIVA']),
+      executed_date: excelDateToISO(r['DT DA ULTIMA PREVENTIVA']),
+      executed_km: toNum(r['KM DA ULTIMA PREVENTIVA']),
+      status: r['STATUS GERAL'],
+      days_overdue: toNum(r['DIAS QUE FALTAM PARA A PREVENTIVA']),
+      raw_data: r,
+    })).filter(v => v.raw_plate);
+  }
+
+  function parseQuilometragem(rows){
+    const out = [];
+    for (const r of rows){
+      const plate = r['PLACA'];
+      const franquia = toNum(r['KM CONTRATO COM LOCADORA']);
+      Object.keys(r).forEach(k => {
+        const m = k.toUpperCase().match(/^KM RODADO\s+([A-ZÇÃÕÁÉÍÓÚ]+)$/);
+        if (m && r[k] !== null && r[k] !== '') {
+          const km = toNum(r[k]) || 0;
+          out.push({
+            raw_plate: plate,
+            reference_month: mesParaData(m[1]),
+            km_rodado: km,
+            km_franquia: franquia,
+            utilization_pct: franquia ? +(km/franquia*100).toFixed(1) : null,
+            utilization_class: classificarUtilizacao(franquia ? km/franquia*100 : null),
+            raw_data: r,
+          });
+        }
+      });
+    }
+    return out.filter(v => v.raw_plate);
+  }
+  function mesParaData(nomeMes){
+    const meses = {JANEIRO:'01',FEVEREIRO:'02',MARCO:'03',ABRIL:'04',MAIO:'05',JUNHO:'06',
+      JULHO:'07',AGOSTO:'08',SETEMBRO:'09',OUTUBRO:'10',NOVEMBRO:'11',DEZEMBRO:'12'};
+    const mm = meses[nomeMes.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()];
+    if (!mm) return null;
+    const ano = new Date().getFullYear();
+    return `${ano}-${mm}-01`;
+  }
+  function classificarUtilizacao(pct){
+    if (pct === null) return null;
+    if (pct > 100) return 'SUPERUTILIZADO';
+    if (pct >= 70) return 'ADEQUADO';
+    if (pct >= 30) return 'BAIXA_UTILIZACAO';
+    return 'POTENCIAL_OCIOSIDADE';
+  }
+
+  // COMPORTAMENTAL e MULTAS não têm PLACA — vinculam por condutor, não por veículo.
+  function parseComportamentalSheet(rows){
+    return (rows||[]).map(r => ({
+      raw_plate: null,
+      driver_name: r['CONDUTOR'],
+      reference_month_raw: r['PERIODO'],
+      hard_braking_count: toNum(r['FRENAGEM_BRUSCA']) || 0,
+      hard_acceleration_count: toNum(r['ACELERACAO_BRUSCA']) || 0,
+      hard_cornering_count: toNum(r['CURVA_BRUSCA']) || 0,
+      speeding_count: (toNum(r['INFRACAO_MEDIA'])||0) + (toNum(r['INFRACAO_GRAVE'])||0) + (toNum(r['INFRACAO_GRAVISSIMA'])||0),
+      score: toNum(r['TOTAL_PONTOS']),
+      exposure_class: r['CLASSIFICACAO'],
+      source_sheet: 'COMPORTAMENTAL',
+      raw_data: r,
+    }));
+  }
+  function parseMultasSheet(rows){
+    return (rows||[]).map(r => ({
+      raw_plate: null,
+      driver_name: r['Motorista'],
+      reference_month_raw: r['Período'],
+      hard_braking_count: toNum(r['TOTAL FRENAGEM']) || 0,
+      hard_acceleration_count: toNum(r['TOTAL ACELERAÇÃO']) || 0,
+      hard_cornering_count: toNum(r['TOTAL CURVA']) || 0,
+      speeding_count: 0,
+      score: toNum(r['PONTUAÇÃO CONDUTOR']),
+      exposure_class: r['CLASSIFICAÇÃO CONDUTOR'],
+      source_sheet: 'MULTAS',
+      raw_data: r,
+    }));
+  }
+
+  function parseDescontos(rows){
+    return rows.map(r => ({
+      employee_name: r['NOME COMPLETO'],
+      raw_plate: null, // esta aba não tem PLACA
+      occurrence_description: r['DESCRIÇÃO DO OCORRIDO'],
+      occurrence_date: null, // só existe "MÊS COMPETÊNCIA" como texto, sem dia — fica em raw_data
+      amount: toNum(r['VALOR DO DESCONTO']),
+      funnel_stage: toBool(r['ENVIADO AO RH']) ? 'ENVIADO_RH' : 'IDENTIFICADO',
+      raw_data: r,
+    }));
+  }
+
+  async function handleArquivo(file){
+    const statusEl = document.getElementById('baseUploadStatus');
+    statusEl.textContent = 'Lendo arquivo...'; statusEl.className = 'status';
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const hash = await computeFileHash(file);
+
+      const modules = {};
+      const preview = [];
+
+      function registrar(nome, rowsRaw, parseFn){
+        if (rowsRaw === null){
+          preview.push({ modulo: nome, status: 'BASE_AUSENTE', qtd: 0 });
+          return;
+        }
+        const parsed = parseFn(rowsRaw);
+        modules[nome] = parsed;
+        const perdidos = rowsRaw.length - parsed.length;
+        preview.push({
+          modulo: nome, status: perdidos > 0 ? 'ATENCAO' : 'OK',
+          qtd: parsed.length, obs: perdidos > 0 ? `${perdidos} linha(s) ignorada(s) por falta de placa` : ''
+        });
+      }
+
+      registrar('FROTA', sheetRows(wb,'FROTA'), parseFrota);
+      registrar('ACIDENTES', sheetRows(wb,'ACIDENTES'), parseAcidentes);
+      registrar('CORRETIVAS', sheetRows(wb,'CORRETIVAS'), parseCorretivas);
+      registrar('PREVENTIVAS_VEICULOS', sheetRows(wb,'PREVENTIVAS_VEICULOS'), parsePreventivasVeiculos);
+      registrar('QUILOMETRAGEM', sheetRows(wb,'QUILOMETRAGEM'), parseQuilometragem);
+
+      const comportamental = [
+        ...parseComportamentalSheet(sheetRows(wb,'COMPORTAMENTAL')),
+        ...parseMultasSheet(sheetRows(wb,'MULTAS')),
+      ];
+      modules.COMPORTAMENTAL = comportamental;
+      preview.push({ modulo: 'COMPORTAMENTAL (+ MULTAS)', status: 'OK', qtd: comportamental.length });
+
+      registrar('DESCONTOS', sheetRows(wb,'DESCONTOS'), parseDescontos);
+
+      ultimoArquivo = { fileName: file.name, fileHash: hash, fileSizeBytes: file.size };
+      ultimosModulos = modules;
+
+      renderPreview(preview);
+      statusEl.textContent = 'Arquivo lido. Confira o preview abaixo.'; statusEl.className = 'status ok';
+    } catch(err){
+      console.error(err);
+      statusEl.textContent = 'Erro ao ler arquivo: ' + err.message; statusEl.className = 'status err';
+    }
+  }
+
+  function renderPreview(preview){
+    const list = document.getElementById('previewList');
+    list.innerHTML = preview.map(p => `
+      <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #eee;">
+        <span><b>${p.modulo}</b> ${p.obs ? '— '+p.obs : ''}</span>
+        <span>${p.status === 'BASE_AUSENTE' ? 'BASE AUSENTE' : p.qtd + ' registros — ' + p.status}</span>
+      </div>
+    `).join('');
+    document.getElementById('previewCard').style.display = 'block';
+    document.getElementById('importResultMsg').textContent = '';
+  }
+
+  document.getElementById('baseConsolidadaInput').addEventListener('change', (e) => {
+    if (e.target.files[0]) handleArquivo(e.target.files[0]);
+  });
+  document.getElementById('btnCancelarImport').addEventListener('click', () => {
+    document.getElementById('previewCard').style.display = 'none';
+    document.getElementById('baseConsolidadaInput').value = '';
+  });
+  document.getElementById('btnConfirmarImport').addEventListener('click', async () => {
+    const msgEl = document.getElementById('importResultMsg');
+    msgEl.textContent = 'Enviando e gravando no banco...';
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { msgEl.textContent = 'Sessão expirada, faça login novamente.'; return; }
+    try {
+      const resp = await fetch(EDGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...ultimoArquivo, modules: ultimosModulos }),
+      });
+      const result = await resp.json();
+      if (result.warning === 'DUPLICATE_FILE') {
+        msgEl.innerHTML = `⚠️ Este arquivo aparenta já ter sido importado em ${new Date(result.previousImportAt).toLocaleString('pt-BR')}.`;
+        return;
+      }
+      if (result.error) { msgEl.innerHTML = '❌ ' + result.error; return; }
+      msgEl.innerHTML = `✅ Importação concluída (${result.status}). Avisos: ${result.totalWarnings}, Erros: ${result.totalErrors}.`;
+    } catch(err){
+      msgEl.textContent = 'Erro de conexão: ' + err.message;
+    }
+  });
+})();
+</script>
 </body>
 </html>
