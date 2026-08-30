@@ -138,6 +138,9 @@
   .userpill{ display:flex; align-items:center; gap:8px; }
   .userpill button{ background:transparent; border:1px solid rgba(255,255,255,.3); color:#fff; border-radius:6px; padding:5px 10px; font-size:11px; cursor:pointer; }
   .userpill button:hover{ background:rgba(255,255,255,.1); }
+  .filtroselect{ background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.3); color:#fff; border-radius:6px; padding:3px 6px; font-size:11px; margin-top:3px; max-width:130px; }
+  .filtroselect option{ color:#000; }
+  .pill.filterpill span{ font-size:9px; text-transform:uppercase; letter-spacing:.3px; opacity:.85; }
   </style>
 </head>
 <body>
@@ -192,7 +195,18 @@
         <p>Gestão Estratégica de Frotas</p>
       </div>
       <div class="headctrls">
-        <div class="pill">Obra<b>Todas</b></div>
+        <div class="pill filterpill">
+          <span>Empresa</span>
+          <select id="filtroEmpresa" class="filtroselect"><option value="">Todas</option></select>
+        </div>
+        <div class="pill filterpill">
+          <span>Obra</span>
+          <select id="filtroObra" class="filtroselect"><option value="">Todas</option></select>
+        </div>
+        <div class="pill filterpill">
+          <span>Centro de Custo</span>
+          <select id="filtroCC" class="filtroselect"><option value="">Todos</option></select>
+        </div>
         <div class="pill">Período<b>2026</b></div>
         <div class="pill">Atualizado<b id="lastUpdate">—</b></div>
         <div class="badge">
@@ -941,6 +955,7 @@ renderAll();
     appEl.style.display = 'flex';
     userPill.style.display = 'flex';
     userNameLabel.textContent = profile.full_name || profile.username;
+    if (typeof window.onLoginSuccess === 'function') window.onLoginSuccess();
   }
 
   function mostrarErroLogin(msg){
@@ -1068,6 +1083,8 @@ renderAll();
       renter: r['LOCADORA'],
       fleet_type: mapFleetType(r['TIPO DE FROTA (LEVE, PESADO, FURGÃO OU UTILITÁRIO)']),
       has_tracker: toBool(r['RASTREADOR']),
+      tracker_provider: r['RASTREADOR'] ? String(r['RASTREADOR']).trim() : null,
+      monthly_cost: toNum(r['CUSTO DE LOCAÇÃO']),
       contract_start: excelDateToISO(r['DATA DE ENTREGA']),
       contract_end: excelDateToISO(r['FIM DO CONTRATO']),
       cost_center_text: r['CENTRO DE CUSTO'],
@@ -1299,6 +1316,89 @@ renderAll();
       msgEl.textContent = 'Erro de conexão: ' + err.message;
     }
   });
+})();
+</script>
+<script>
+(function(){
+  // ATENÇÃO: este bloco conecta ao Supabase apenas a Visão Executiva (parte de Frota) e a página Frota.
+  // As demais páginas (Preventivas, Corretivas, Acidentes, Descontos, KM, Comportamental, Governança)
+  // ainda usam os dados fixos definidos em AGG lá em cima — serão conectadas na próxima entrega.
+
+  let filtro = { companyId: '', workId: '', costCenterId: '' };
+
+  function topN(obj, n){ return Object.fromEntries(Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,n)); }
+  function mesesRestantes(dataFim){
+    if (!dataFim) return null;
+    const hoje = new Date(); const fim = new Date(dataFim);
+    return (fim.getFullYear()-hoje.getFullYear())*12 + (fim.getMonth()-hoje.getMonth());
+  }
+  function bucketTempo(meses){
+    if (meses === null || meses <= 0) return '0m';
+    if (meses <= 3) return '1-3m';
+    if (meses <= 6) return '4-6m';
+    if (meses <= 12) return '7-12m';
+    if (meses <= 18) return '13-18m';
+    if (meses <= 24) return '19-24m';
+    return '25m+';
+  }
+
+  async function popularFiltros(){
+    const { data: companies } = await sb.from('companies').select('id,name').order('name');
+    const { data: works } = await sb.from('works').select('id,name,code').order('name');
+    const { data: costCenters } = await sb.from('cost_centers').select('id,name,code').order('name');
+
+    const selEmpresa = document.getElementById('filtroEmpresa');
+    const selObra = document.getElementById('filtroObra');
+    const selCC = document.getElementById('filtroCC');
+
+    (companies||[]).forEach(c => selEmpresa.insertAdjacentHTML('beforeend', `<option value="${c.id}">${c.name}</option>`));
+    (works||[]).forEach(w => selObra.insertAdjacentHTML('beforeend', `<option value="${w.id}">${w.name || w.code}</option>`));
+    (costCenters||[]).forEach(cc => selCC.insertAdjacentHTML('beforeend', `<option value="${cc.id}">${cc.name || cc.code}</option>`));
+
+    selEmpresa.addEventListener('change', () => { filtro.companyId = selEmpresa.value; carregarDadosFrota(); });
+    selObra.addEventListener('change', () => { filtro.workId = selObra.value; carregarDadosFrota(); });
+    selCC.addEventListener('change', () => { filtro.costCenterId = selCC.value; carregarDadosFrota(); });
+  }
+
+  async function carregarDadosFrota(){
+    let q = sb.from('vehicles').select('vehicle_id,plate,fleet_type,renter,monthly_cost,tracker_provider,contract_end,work_id,cost_center_id,works(name)');
+    if (filtro.companyId) q = q.eq('company_id', filtro.companyId);
+    if (filtro.workId) q = q.eq('work_id', filtro.workId);
+    if (filtro.costCenterId) q = q.eq('cost_center_id', filtro.costCenterId);
+    const { data: vehicles, error } = await q;
+    if (error) { console.error('Erro ao carregar frota:', error); return; }
+
+    const total = vehicles.length;
+    const custoMensal = vehicles.reduce((s,v)=>s+(Number(v.monthly_cost)||0),0);
+    const custoMedio = total ? custoMensal/total : 0;
+    const porObraQtd = {}, porObraCusto = {}, locadoraTop = {}, mixTipo = {}, rastreador = {};
+    const tempoBucket = {'0m':0,'1-3m':0,'4-6m':0,'7-12m':0,'13-18m':0,'19-24m':0,'25m+':0};
+
+    vehicles.forEach(v=>{
+      const obraNome = v.works?.name || '(sem obra)';
+      porObraQtd[obraNome] = (porObraQtd[obraNome]||0)+1;
+      porObraCusto[obraNome] = (porObraCusto[obraNome]||0) + (Number(v.monthly_cost)||0);
+      const loc = v.renter || '(sem locadora)';
+      locadoraTop[loc] = (locadoraTop[loc]||0)+1;
+      const tipo = v.fleet_type || '(sem tipo)';
+      mixTipo[tipo] = (mixTipo[tipo]||0)+1;
+      const rast = v.tracker_provider || 'Sem rastreador';
+      rastreador[rast] = (rastreador[rast]||0)+1;
+      tempoBucket[bucketTempo(mesesRestantes(v.contract_end))]++;
+    });
+
+    AGG.frota = {
+      total, custoMensal, custoMedio,
+      porObraQtd: topN(porObraQtd,10), porObraCusto: topN(porObraCusto,10),
+      locadoraTop: topN(locadoraTop,8), tempoRestanteBucket: tempoBucket,
+      mixTipo: topN(mixTipo,10), rastreador: topN(rastreador,8),
+    };
+
+    renderVisao();
+    renderFrota();
+  }
+
+  window.onLoginSuccess = () => { popularFiltros().then(carregarDadosFrota); };
 })();
 </script>
 </body>
