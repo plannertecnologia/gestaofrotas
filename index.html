@@ -745,8 +745,10 @@ function renderFrota(){
   barList(document.getElementById('f_rastreador'), f.rastreador);
   mkChart('f_chartTempo', {type:'bar', data:{labels:Object.keys(f.tempoRestanteBucket), datasets:[{data:Object.values(f.tempoRestanteBucket), backgroundColor:COLORS.gold, borderRadius:5}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}}}});
-  mkChart('f_chartMix', {type:'doughnut', data:{labels:Object.keys(f.mixTipo), datasets:[{data:Object.values(f.mixTipo), backgroundColor:PAL, borderColor:'#fff', borderWidth:3}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}}}}});
+  const tiposFrotaLabels = Object.keys(f.mixTipo);
+  mkChart('f_chartMix', {type:'doughnut', data:{labels:tiposFrotaLabels, datasets:[{data:Object.values(f.mixTipo), backgroundColor:PAL, borderColor:'#fff', borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}}},
+      onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroTipoFrota) window.aplicarFiltroTipoFrota(tiposFrotaLabels[els[0].index]); }}});
 }
 
 /* ========================= RENDER: PREVENTIVAS ========================= */
@@ -760,8 +762,10 @@ function renderPrev(){
   document.getElementById('p_statusMedidorPct').textContent = p.statusMedidorOkPct+'%';
   barList(document.getElementById('p_porObra'), p.porObra, {clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
   barList(document.getElementById('p_porTipo'), p.porTipo);
+  const classesPrev = ['OK','ATENCAO','VENCIDO'];
   mkChart('p_chartStatus', {type:'doughnut', data:{labels:['Em dia','Atenção','Vencido'], datasets:[{data:[p.ok,p.atencao,p.vencido], backgroundColor:[COLORS.teal,COLORS.gold,COLORS.danger], borderColor:'#fff', borderWidth:3}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{boxWidth:9}}}}});
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{boxWidth:9}}},
+      onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroStatusPrev) window.aplicarFiltroStatusPrev(classesPrev[els[0].index]); }}});
 }
 
 /* ========================= RENDER: CORRETIVAS ========================= */
@@ -783,8 +787,10 @@ function renderCorr(){
   mkChart('c_chartCustoMes', {type:'bar', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>c.custoPorMes?.[m]||0), backgroundColor:COLORS.teal, borderRadius:5}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}},
       onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroMes) window.aplicarFiltroMes(meses[els[0].index]); }}});
-  mkChart('c_chartEv', {type:'doughnut', data:{labels:Object.keys(c.evidencia), datasets:[{data:Object.values(c.evidencia), backgroundColor:[COLORS.teal,COLORS.danger,COLORS.blue,COLORS.muted], borderColor:'#fff', borderWidth:3}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}}}}});
+  const evidenciaLabels = Object.keys(c.evidencia);
+  mkChart('c_chartEv', {type:'doughnut', data:{labels:evidenciaLabels, datasets:[{data:Object.values(c.evidencia), backgroundColor:[COLORS.teal,COLORS.danger,COLORS.blue,COLORS.muted], borderColor:'#fff', borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}}},
+      onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroEvidenciaCorr) window.aplicarFiltroEvidenciaCorr(evidenciaLabels[els[0].index]); }}});
 }
 
 /* ========================= RENDER: ACIDENTES ========================= */
@@ -804,8 +810,10 @@ function renderAcid(){
   mkChart('a_chartCustoMes', {type:'bar', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>a.custoPorMes?.[m]||0), backgroundColor:COLORS.navy, borderRadius:5}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}},
       onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroMes) window.aplicarFiltroMes(meses[els[0].index]); }}});
-  mkChart('a_chartCiente', {type:'doughnut', data:{labels:Object.keys(a.frotaCiente), datasets:[{data:Object.values(a.frotaCiente), backgroundColor:[COLORS.teal,COLORS.danger], borderColor:'#fff', borderWidth:3}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom'}}}});
+  const cienteLabels = Object.keys(a.frotaCiente);
+  mkChart('a_chartCiente', {type:'doughnut', data:{labels:cienteLabels, datasets:[{data:Object.values(a.frotaCiente), backgroundColor:[COLORS.teal,COLORS.danger,COLORS.muted], borderColor:'#fff', borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom'}},
+      onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroCienteAcid) window.aplicarFiltroCienteAcid(cienteLabels[els[0].index]); }}});
 }
 
 /* ========================= RENDER: DESCONTOS ========================= */
@@ -1493,6 +1501,10 @@ renderAll();
       const nomesMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
       partes.push('Mês: ' + nomesMes[Number(filtro.mes)-1]);
     }
+    if (typeof filtroStatusPrev !== 'undefined' && filtroStatusPrev) partes.push('Status Preventiva: ' + filtroStatusPrev);
+    if (typeof filtroTipoFrota !== 'undefined' && filtroTipoFrota) partes.push('Tipo de Frota: ' + filtroTipoFrota);
+    if (typeof filtroCienteAcid !== 'undefined' && filtroCienteAcid) partes.push('Frota Ciente: ' + filtroCienteAcid);
+    if (typeof filtroEvidenciaCorr !== 'undefined' && filtroEvidenciaCorr) partes.push('Evidência: ' + filtroEvidenciaCorr);
     const info = document.getElementById('filtroAtivoInfo');
     if (partes.length) {
       document.getElementById('filtroAtivoTexto').textContent = 'Filtrando por — ' + partes.join(' | ');
@@ -1519,6 +1531,7 @@ renderAll();
 
   document.getElementById('btnLimparFiltroChart')?.addEventListener('click', () => {
     filtro.workId = ''; filtro.mes = '';
+    filtroStatusPrev = ''; filtroTipoFrota = ''; filtroCienteAcid = ''; filtroEvidenciaCorr = '';
     document.getElementById('filtroObra').value = '';
     document.getElementById('filtroMes').value = '';
     atualizarFiltroAtivoInfo();
@@ -1574,17 +1587,28 @@ renderAll();
     document.getElementById('filtroMes').addEventListener('change', (e) => { filtro.mes = e.target.value; atualizarFiltroAtivoInfo(); recarregarTudo(); });
   }
 
+  let filtroTipoFrota = '';
+  window.aplicarFiltroTipoFrota = function(tipo){
+    filtroTipoFrota = filtroTipoFrota === tipo ? '' : tipo;
+    carregarDadosFrota().then(renderFrota);
+  };
+
   async function carregarDadosFrota(){
     let q = sb.from('vehicles').select('vehicle_id,plate,fleet_type,renter,monthly_cost,tracker_provider,contract_end,work_id,cost_center_id,works(name)');
     if (filtro.companyId) q = q.eq('company_id', filtro.companyId);
     if (filtro.workId) q = q.eq('work_id', filtro.workId);
-    const { data: vehicles, error } = await q;
+    const { data: vehiclesAll, error } = await q;
     if (error) { console.error('Erro ao carregar frota:', error); return; }
+
+    const mixTipoTotal = {};
+    vehiclesAll.forEach(v=>{ const tipo = v.fleet_type || '(sem tipo)'; mixTipoTotal[tipo] = (mixTipoTotal[tipo]||0)+1; });
+
+    const vehicles = filtroTipoFrota ? vehiclesAll.filter(v => (v.fleet_type||'(sem tipo)') === filtroTipoFrota) : vehiclesAll;
 
     const total = vehicles.length;
     const custoMensal = vehicles.reduce((s,v)=>s+(Number(v.monthly_cost)||0),0);
     const custoMedio = total ? custoMensal/total : 0;
-    const porObraQtd = {}, porObraCusto = {}, locadoraTop = {}, mixTipo = {}, rastreador = {};
+    const porObraQtd = {}, porObraCusto = {}, locadoraTop = {}, rastreador = {};
     const tempoBucket = {'0m':0,'1-3m':0,'4-6m':0,'7-12m':0,'13-18m':0,'19-24m':0,'25m+':0};
 
     vehicles.forEach(v=>{
@@ -1593,8 +1617,6 @@ renderAll();
       porObraCusto[obraNome] = (porObraCusto[obraNome]||0) + (Number(v.monthly_cost)||0);
       const loc = v.renter || '(sem locadora)';
       locadoraTop[loc] = (locadoraTop[loc]||0)+1;
-      const tipo = v.fleet_type || '(sem tipo)';
-      mixTipo[tipo] = (mixTipo[tipo]||0)+1;
       const rast = v.tracker_provider || 'Sem rastreador';
       rastreador[rast] = (rastreador[rast]||0)+1;
       tempoBucket[bucketTempo(mesesRestantes(v.contract_end))]++;
@@ -1604,9 +1626,21 @@ renderAll();
       total, custoMensal, custoMedio,
       porObraQtd: topN(porObraQtd,10), porObraCusto: topN(porObraCusto,10),
       locadoraTop: topN(locadoraTop,8), tempoRestanteBucket: tempoBucket,
-      mixTipo: topN(mixTipo,10), rastreador: topN(rastreador,8),
+      mixTipo: topN(mixTipoTotal,10), rastreador: topN(rastreador,8),
     };
   }
+
+  let filtroStatusPrev = '';
+  function classificarStatusPrev(status){
+    const s = String(status||'').toUpperCase();
+    if (s.includes('VENC')) return 'VENCIDO';
+    if (s.includes('ATEN')) return 'ATENCAO';
+    return 'OK';
+  }
+  window.aplicarFiltroStatusPrev = function(classe){
+    filtroStatusPrev = filtroStatusPrev === classe ? '' : classe; // clicar de novo no mesmo limpa
+    carregarDadosPreventivas().then(renderPrev);
+  };
 
   async function carregarDadosPreventivas(){
     let q = sb.from('preventive_maintenance_vehicles')
@@ -1616,12 +1650,13 @@ renderAll();
     if (error) { console.error('preventivas', error); return; }
     const total = data.length;
     let ok=0, atencao=0, vencido=0;
-    const porObra={}, porTipo={};
     data.forEach(r=>{
-      const s = String(r.status||'').toUpperCase();
-      if (s.includes('VENC')) vencido++;
-      else if (s.includes('ATEN')) atencao++;
-      else ok++;
+      const c = classificarStatusPrev(r.status);
+      if (c === 'VENCIDO') vencido++; else if (c === 'ATENCAO') atencao++; else ok++;
+    });
+    const dataFiltrada = filtroStatusPrev ? data.filter(r => classificarStatusPrev(r.status) === filtroStatusPrev) : data;
+    const porObra={}, porTipo={};
+    dataFiltrada.forEach(r=>{
       const obra = r.vehicles?.works?.name || '(sem obra)';
       porObra[obra] = (porObra[obra]||0)+1;
       const tipo = r.vehicles?.fleet_type || '(sem tipo)';
@@ -1632,8 +1667,15 @@ renderAll();
       porObra: topN(porObra,8), porTipo: topN(porTipo,8),
       statusTempoOkPct: total? Math.round(1000*ok/total)/10 : 0,
       statusMedidorOkPct: total? Math.round(1000*ok/total)/10 : 0,
+      filtroAtivo: filtroStatusPrev,
     };
   }
+
+  let filtroEvidenciaCorr = '';
+  window.aplicarFiltroEvidenciaCorr = function(valor){
+    filtroEvidenciaCorr = filtroEvidenciaCorr === valor ? '' : valor;
+    carregarDadosCorretivas().then(renderCorr);
+  };
 
   async function carregarDadosCorretivas(){
     let q = sb.from('corrective_maintenance')
@@ -1641,14 +1683,20 @@ renderAll();
     q = scopeFilterEmbedded(q);
     const rangeC = monthRange();
     if (rangeC) q = q.gte('occurrence_date', rangeC.start).lt('occurrence_date', rangeC.end);
-    const { data, error } = await q;
+    const { data: dataAll, error } = await q;
     if (error) { console.error('corretivas', error); return; }
+
+    const evidenciaTotal = {};
+    dataAll.forEach(r=>{ const ev = r.has_evidence ? 'SIM' : 'NÃO'; evidenciaTotal[ev] = (evidenciaTotal[ev]||0)+1; });
+
+    const data = filtroEvidenciaCorr ? dataAll.filter(r => (r.has_evidence?'SIM':'NÃO') === filtroEvidenciaCorr) : dataAll;
+
     const total = data.length;
     const custoTotal = data.reduce((s,r)=>s+(Number(r.cost)||0),0);
     const semCusto = data.filter(r=>!r.cost).length;
     const semEvidencia = data.filter(r=>r.has_evidence===false).length;
     const dias = data.map(r=>r.days_stopped).filter(v=>v!=null);
-    const porMes={}, custoPorMes={}, custoPorObra={}, evidencia={}, topMotivo={}, oficinas={};
+    const porMes={}, custoPorMes={}, custoPorObra={}, topMotivo={}, oficinas={};
     data.forEach(r=>{
       if (r.occurrence_date){
         const m = mesNumero(r.occurrence_date);
@@ -1657,8 +1705,6 @@ renderAll();
       }
       const obra = r.vehicles?.works?.name || '(sem obra)';
       custoPorObra[obra] = (custoPorObra[obra]||0) + (Number(r.cost)||0);
-      const ev = r.has_evidence ? 'SIM' : 'NÃO';
-      evidencia[ev] = (evidencia[ev]||0)+1;
       const motivo = r.service_description || '(sem motivo)';
       topMotivo[motivo] = (topMotivo[motivo]||0)+1;
       const of = r.workshop || '(sem oficina)';
@@ -1666,10 +1712,16 @@ renderAll();
     });
     AGG.corretivas = {
       total, custoTotal, semCusto, diasParadoMedia: dias.length? dias.reduce((a,b)=>a+b,0)/dias.length : 0, semEvidencia,
-      porMes, custoPorMes, custoPorObra: topN(custoPorObra,8), evidencia,
+      porMes, custoPorMes, custoPorObra: topN(custoPorObra,8), evidencia: evidenciaTotal,
       topMotivo: topN(topMotivo,8), oficinas: topN(oficinas,8),
     };
   }
+
+  let filtroCienteAcid = '';
+  window.aplicarFiltroCienteAcid = function(valor){
+    filtroCienteAcid = filtroCienteAcid === valor ? '' : valor;
+    carregarDadosAcidentes().then(renderAcid);
+  };
 
   async function carregarDadosAcidentes(){
     let q = sb.from('accidents')
@@ -1677,11 +1729,17 @@ renderAll();
     q = scopeFilterEmbedded(q);
     const rangeA = monthRange();
     if (rangeA) q = q.gte('occurrence_date', rangeA.start).lt('occurrence_date', rangeA.end);
-    const { data, error } = await q;
+    const { data: dataAll, error } = await q;
     if (error) { console.error('acidentes', error); return; }
+
+    const frotaCienteTotal = {};
+    dataAll.forEach(r=>{ const fc = (r.raw_data||{})['FROTAS UTILITIES CIENTE?'] || '(não informado)'; frotaCienteTotal[fc] = (frotaCienteTotal[fc]||0)+1; });
+
+    const data = filtroCienteAcid ? dataAll.filter(r => ((r.raw_data||{})['FROTAS UTILITIES CIENTE?'] || '(não informado)') === filtroCienteAcid) : dataAll;
+
     const total = data.length;
     const custoTotal = data.reduce((s,r)=>s+(Number(r.cost)||0),0);
-    const porMes={}, custoPorMes={}, porObra={}, custoPorObra={}, tipoSinistro={}, frotaCiente={}, smsCiente={};
+    const porMes={}, custoPorMes={}, porObra={}, custoPorObra={}, tipoSinistro={}, smsCiente={};
     data.forEach(r=>{
       if (r.occurrence_date){
         const m = mesNumero(r.occurrence_date);
@@ -1694,14 +1752,12 @@ renderAll();
       const raw = r.raw_data || {};
       const tipo = raw['TIPO DE SINISTRO'] || '(não informado)';
       tipoSinistro[tipo] = (tipoSinistro[tipo]||0)+1;
-      const fc = raw['FROTAS UTILITIES CIENTE?'] || '(não informado)';
-      frotaCiente[fc] = (frotaCiente[fc]||0)+1;
       const sc = raw['ENGENHEIRO DE SMS CIENTE?'] || '(não informado)';
       smsCiente[sc] = (smsCiente[sc]||0)+1;
     });
     AGG.acidentes = {
       total, custoTotal, porMes, custoPorMes, porObra: topN(porObra,8), custoPorObra: topN(custoPorObra,8),
-      tipoSinistro: topN(tipoSinistro,8), frotaCiente, smsCiente,
+      tipoSinistro: topN(tipoSinistro,8), frotaCiente: frotaCienteTotal, smsCiente,
     };
   }
 
