@@ -1286,7 +1286,11 @@ renderAll();
         return;
       }
       if (result.error) { msgEl.innerHTML = '❌ ' + result.error; return; }
-      msgEl.innerHTML = `✅ Importação concluída (${result.status}). Avisos: ${result.totalWarnings}, Erros: ${result.totalErrors}.`;
+      let debugHtml = '';
+      if (result.debugErrors && Object.keys(result.debugErrors).length) {
+        debugHtml = '<br><b>Detalhe dos erros:</b><br>' + Object.entries(result.debugErrors).map(([t,m])=>`${t}: ${m}`).join('<br>');
+      }
+      msgEl.innerHTML = `✅ Importação concluída (${result.status}). Avisos: ${result.totalWarnings}, Erros: ${result.totalErrors}.${debugHtml}`;
     } catch(err){
       msgEl.textContent = 'Erro de conexão: ' + err.message;
     }
