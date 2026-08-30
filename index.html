@@ -1025,12 +1025,16 @@ renderAll();
   }
   function excelDateToISO(v){
     if(v === null || v === undefined || v === '') return null;
+    let d;
     if (typeof v === 'number') {
-      const d = new Date(Math.round((v - 25569) * 86400 * 1000));
-      return isNaN(d.getTime()) ? null : d.toISOString().slice(0,10);
+      d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    } else {
+      d = new Date(v);
     }
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? null : d.toISOString().slice(0,10);
+    if (isNaN(d.getTime())) return null;
+    const year = d.getUTCFullYear();
+    if (year < 1990 || year > 2100) return null; // valor implausível, provavelmente não é uma data real — ignora em vez de gravar lixo
+    return d.toISOString().slice(0,10);
   }
   function toBool(v){ return /sim|true|1/i.test(String(v||'')); }
   function toNum(v){ const n = Number(v); return isNaN(n) ? null : n; }
@@ -1161,10 +1165,10 @@ renderAll();
       raw_plate: null,
       driver_name: r['CONDUTOR'],
       reference_month_raw: r['PERIODO'],
-      hard_braking_count: toNum(r['FRENAGEM_BRUSCA']) || 0,
-      hard_acceleration_count: toNum(r['ACELERACAO_BRUSCA']) || 0,
-      hard_cornering_count: toNum(r['CURVA_BRUSCA']) || 0,
-      speeding_count: (toNum(r['INFRACAO_MEDIA'])||0) + (toNum(r['INFRACAO_GRAVE'])||0) + (toNum(r['INFRACAO_GRAVISSIMA'])||0),
+      hard_braking_count: Math.round(toNum(r['FRENAGEM_BRUSCA']) || 0),
+      hard_acceleration_count: Math.round(toNum(r['ACELERACAO_BRUSCA']) || 0),
+      hard_cornering_count: Math.round(toNum(r['CURVA_BRUSCA']) || 0),
+      speeding_count: Math.round((toNum(r['INFRACAO_MEDIA'])||0) + (toNum(r['INFRACAO_GRAVE'])||0) + (toNum(r['INFRACAO_GRAVISSIMA'])||0)),
       score: toNum(r['TOTAL_PONTOS']),
       exposure_class: r['CLASSIFICACAO'],
       source_sheet: 'COMPORTAMENTAL',
@@ -1176,9 +1180,9 @@ renderAll();
       raw_plate: null,
       driver_name: r['Motorista'],
       reference_month_raw: r['Período'],
-      hard_braking_count: toNum(r['TOTAL FRENAGEM']) || 0,
-      hard_acceleration_count: toNum(r['TOTAL ACELERAÇÃO']) || 0,
-      hard_cornering_count: toNum(r['TOTAL CURVA']) || 0,
+      hard_braking_count: Math.round(toNum(r['TOTAL FRENAGEM']) || 0),
+      hard_acceleration_count: Math.round(toNum(r['TOTAL ACELERAÇÃO']) || 0),
+      hard_cornering_count: Math.round(toNum(r['TOTAL CURVA']) || 0),
       speeding_count: 0,
       score: toNum(r['PONTUAÇÃO CONDUTOR']),
       exposure_class: r['CLASSIFICAÇÃO CONDUTOR'],
