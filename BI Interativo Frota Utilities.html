@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestão Estratégica de Frotas | Utilities</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#00264C; --blue-dark:#0D466F; --blue:#0D83C6;
+    --teal-dark:#114E52; --teal:#18686E; --cyan:#C1EEF1; --gold:#DEBA08;
+    --bg:#F4F7F9; --card:#FFFFFF; --text:#0D1B2A; --muted:#5C7080;
+    --danger:#C0392B; --ok:#18686E; --sidebar-w:96px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',Inter,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  .app{display:flex;min-height:100vh;}
+
+  /* Sidebar */
+  .sidebar{
+    width:var(--sidebar-w); background:var(--navy); color:#fff;
+    display:flex; flex-direction:column; align-items:center; padding:16px 0;
+    position:fixed; top:0; bottom:0; left:0; z-index:10;
+  }
+  .sidebar .logo{
+    background:var(--blue); color:#fff; font-size:10px; font-weight:700;
+    padding:8px 10px; border-radius:6px; margin-bottom:18px; letter-spacing:.5px;
+  }
+  .navitem{
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    padding:8px 0; width:100%; cursor:pointer; color:#9FB4C7; font-size:9.5px;
+    border-left:3px solid transparent; margin-bottom:2px; user-select:none;
+  }
+  .navitem .circ{
+    width:30px;height:30px;border-radius:50%; border:1.5px solid #3C5C77;
+    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;
+  }
+  .navitem.active{ color:#fff; border-left-color:var(--blue); background:rgba(255,255,255,.05); }
+  .navitem.active .circ{ background:var(--blue); border-color:var(--blue); }
+  .navitem.importbtn{ margin-top:auto; }
+  .navitem.importbtn .circ{ border-color:var(--gold); }
+  .navitem.importbtn.active .circ{ background:var(--gold); border-color:var(--gold); }
+
+  /* Main */
+  .main{ margin-left:var(--sidebar-w); flex:1; display:flex; flex-direction:column; }
+  header{
+    background:linear-gradient(120deg,var(--navy) 0%,var(--blue-dark) 55%,var(--teal-dark) 100%);
+    color:#fff; padding:20px 32px; display:flex; justify-content:space-between; align-items:center;
+    flex-wrap:wrap; gap:14px;
+  }
+  header .title h1{ font-size:20px; font-weight:600; }
+  header .title p{ font-size:12px; color:var(--cyan); margin-top:3px; }
+  .headctrls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .pill{
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.2);
+    padding:6px 12px; border-radius:8px; font-size:11px; line-height:1.4;
+  }
+  .pill b{ display:block; font-size:12px; }
+  .badge{
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25);
+    padding:5px 10px; border-radius:20px; font-size:10.5px; display:flex; align-items:center; gap:6px;
+  }
+  .dot{width:7px;height:7px;border-radius:50%;background:#4CD37B;display:inline-block;}
+  .dot.imported{background:var(--gold);}
+
+  .content{ padding:24px 32px 50px; max-width:1500px; }
+  .kpi-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; margin-bottom:22px; }
+  .kpi{ background:var(--card); border-radius:12px; padding:16px 18px; box-shadow:0 2px 10px rgba(13,70,111,.06); border-top:4px solid var(--blue); }
+  .kpi.warn{border-top-color:var(--gold);} .kpi.danger{border-top-color:var(--danger);}
+  .kpi.teal{border-top-color:var(--teal);} .kpi.navy{border-top-color:var(--navy);}
+  .kpi .label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); font-weight:700; margin-bottom:6px; }
+  .kpi .value{ font-size:22px; font-weight:700; color:var(--navy); }
+  .kpi .sub{ font-size:11px; color:var(--muted); margin-top:5px; }
+
+  .grid{ display:grid; gap:16px; margin-bottom:16px; }
+  .cols-2{ grid-template-columns:1.3fr 1fr; } .cols-3{ grid-template-columns:1fr 1fr 1fr; }
+  .card{ background:var(--card); border-radius:12px; padding:20px; box-shadow:0 2px 10px rgba(13,70,111,.06); }
+  .card h3{ font-size:13.5px; color:var(--navy); font-weight:700; margin-bottom:3px; }
+  .card .cs{ font-size:11px; color:var(--muted); margin-bottom:12px; }
+  .chart-wrap{ position:relative; height:240px; }
+  .chart-wrap.tall{ height:280px; }
+  .barlist{ display:flex; flex-direction:column; gap:9px; }
+  .barlist .row{ display:flex; align-items:center; gap:10px; font-size:11.5px; }
+  .barlist .name{ width:110px; flex-shrink:0; color:var(--muted); }
+  .barlist .track{ flex:1; background:#EEF2F5; border-radius:5px; height:9px; overflow:hidden; }
+  .barlist .fill{ height:100%; border-radius:5px; }
+  .barlist .num{ width:55px; text-align:right; font-weight:700; color:var(--navy); }
+  .alertcard{ display:flex; justify-content:space-between; align-items:center; padding:11px 13px; border-radius:9px; margin-bottom:9px; font-size:12px; }
+  .alertcard b{ font-size:15px; color:var(--navy); }
+  .textcard{ padding:9px 0 9px 12px; border-left:3px solid var(--blue); margin-bottom:12px; }
+  .textcard b{ font-size:12px; color:var(--navy); display:block; margin-bottom:2px; }
+  .textcard span{ font-size:11px; color:var(--muted); }
+  .placeholder{ text-align:center; padding:50px 20px; color:var(--muted); }
+  .placeholder b{ color:var(--navy); display:block; font-size:14px; margin-bottom:6px; }
+  .placeholder button{ margin-top:14px; }
+  table.mini{ width:100%; border-collapse:collapse; font-size:11px; }
+  table.mini th{ text-align:left; color:var(--muted); font-weight:700; padding:6px 8px; border-bottom:2px solid #EEF2F5; text-transform:uppercase; font-size:9.5px; }
+  table.mini td{ padding:7px 8px; border-bottom:1px solid #F2F5F7; }
+  .tag{ padding:2px 8px; border-radius:10px; font-size:9.5px; font-weight:700; }
+  .tag.ok{background:#DFF3EF;color:#0F6B5C;} .tag.no{background:#FBE4E1;color:var(--danger);} .tag.mid{background:#FDF3D6;color:#8A6D00;}
+
+  .page{ display:none; } .page.active{ display:block; }
+
+  /* Import panel */
+  .import-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .upload-slot{ border:2px dashed #C9D6DE; border-radius:12px; padding:18px; background:var(--card); }
+  .upload-slot.done{ border-color:var(--teal); background:#F2FAF9; }
+  .upload-slot h4{ font-size:12.5px; color:var(--navy); margin-bottom:3px; }
+  .upload-slot p{ font-size:10.5px; color:var(--muted); margin-bottom:10px; }
+  .upload-slot input[type=file]{ font-size:11px; }
+  .upload-slot .status{ margin-top:8px; font-size:10.5px; font-weight:700; }
+  .upload-slot .status.ok{ color:var(--teal-dark); } .upload-slot .status.err{ color:var(--danger); }
+  button.primary{
+    background:var(--blue); color:#fff; border:none; padding:9px 18px; border-radius:8px;
+    font-size:12px; font-weight:700; cursor:pointer;
+  }
+  button.primary:hover{ background:var(--blue-dark); }
+
+  @media(max-width:1000px){ .cols-2,.cols-3,.import-grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="sidebar">
+    <div class="logo">FROTA</div>
+    <div class="navitem active" data-page="visao"><div class="circ">V</div>Visão</div>
+    <div class="navitem" data-page="frota"><div class="circ">F</div>Frota</div>
+    <div class="navitem" data-page="prev"><div class="circ">P</div>Prev.</div>
+    <div class="navitem" data-page="corr"><div class="circ">C</div>Corr.</div>
+    <div class="navitem" data-page="acid"><div class="circ">A</div>Acid.</div>
+    <div class="navitem" data-page="multas"><div class="circ">M</div>Multas</div>
+    <div class="navitem" data-page="desc"><div class="circ">D</div>Desc.</div>
+    <div class="navitem" data-page="km"><div class="circ">K</div>KM</div>
+    <div class="navitem" data-page="abast"><div class="circ">B</div>Abast.</div>
+    <div class="navitem" data-page="gov"><div class="circ">G</div>Gov.</div>
+    <div class="navitem importbtn" data-page="import"><div class="circ">⇪</div>Importar</div>
+  </div>
+
+  <div class="main">
+    <header>
+      <div class="title">
+        <h1 id="pageTitle">Visão Executiva</h1>
+        <p>Gestão Estratégica de Frotas</p>
+      </div>
+      <div class="headctrls">
+        <div class="pill">Obra<b>Todas</b></div>
+        <div class="pill">Período<b>2026</b></div>
+        <div class="pill">Atualizado<b id="lastUpdate">—</b></div>
+        <div class="badge"><span class="dot" id="statusDot"></span><span id="statusText">Dados de exemplo (bases enviadas)</span></div>
+      </div>
+    </header>
+
+    <div class="content" id="contentArea">
+
+      <!-- VISÃO -->
+      <div class="page active" id="page-visao">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="label">Frota Total</div><div class="value" id="v_frotaTotal">–</div><div class="sub">veículos na base</div></div>
+          <div class="kpi navy"><div class="label">Custo Locação</div><div class="value" id="v_custoLocacao">–</div><div class="sub">mensal</div></div>
+          <div class="kpi warn"><div class="label">Preventivas Vencidas</div><div class="value" id="v_prevVencidas">–</div><div class="sub" id="v_prevVencidasPct">–</div></div>
+          <div class="kpi teal"><div class="label">Custo Corretivas</div><div class="value" id="v_custoCorretivas">–</div><div class="sub" id="v_corretivasSemCusto">–</div></div>
+          <div class="kpi danger"><div class="label">Acidentes</div><div class="value" id="v_acidentesQtd">–</div><div class="sub" id="v_acidentesCusto">–</div></div>
+          <div class="kpi"><div class="label">Multas</div><div class="value" id="v_multasQtd">–</div><div class="sub" id="v_multasValor">–</div></div>
+          <div class="kpi teal"><div class="label">Desconto Colab.</div><div class="value" id="v_descValor">–</div><div class="sub" id="v_descQtd">–</div></div>
+        </div>
+        <div class="grid cols-3">
+          <div class="card"><h3>Frota por Obra</h3><div class="cs">Top contratos</div><div class="barlist" id="v_frotaPorObra"></div></div>
+          <div class="card"><h3>Farol Operacional</h3><div class="cs">Indicadores que pedem ação</div><div id="v_farol"></div></div>
+          <div class="card"><h3>Leitura Executiva</h3><div class="cs">Resumo automático</div><div id="v_leitura"></div></div>
+        </div>
+        <div class="grid cols-2">
+          <div class="card"><h3>Multas por Mês</h3><div class="cs">Quantidade</div><div class="chart-wrap" id="v_multasMesWrap"><canvas id="v_chartMultasMes"></canvas></div></div>
+          <div class="card"><h3>Locadoras — Concentração da Frota</h3><div class="cs">Top locadoras</div><div class="barlist" id="v_locadoras"></div></div>
+        </div>
+      </div>
+
+      <!-- FROTA -->
+      <div class="page" id="page-frota">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="label">Quantidade</div><div class="value" id="f_qtd">–</div><div class="sub">veículos na relação</div></div>
+          <div class="kpi navy"><div class="label">Custo Mensal</div><div class="value" id="f_custoMensal">–</div><div class="sub">locação cadastrada</div></div>
+          <div class="kpi teal"><div class="label">Custo Médio/Veículo</div><div class="value" id="f_custoMedio">–</div><div class="sub">média simples</div></div>
+        </div>
+        <div class="grid cols-3">
+          <div class="card"><h3>Quantidade por Obra</h3><div class="barlist" id="f_qtdPorObra"></div></div>
+          <div class="card"><h3>Custo por Obra</h3><div class="barlist" id="f_custoPorObra"></div></div>
+          <div class="card"><h3>Locadoras</h3><div class="barlist" id="f_locadoras"></div></div>
+        </div>
+        <div class="grid cols-3">
+          <div class="card"><h3>Tempo Restante dos Contratos</h3><div class="cs">0m = vencido/sem saldo</div><div class="chart-wrap" id="f_tempoWrap"><canvas id="f_chartTempo"></canvas></div></div>
+          <div class="card"><h3>Mix da Frota</h3><div class="chart-wrap" id="f_mixWrap"><canvas id="f_chartMix"></canvas></div></div>
+          <div class="card"><h3>Telemetria / Rastreador</h3><div class="barlist" id="f_rastreador"></div></div>
+        </div>
+      </div>
+
+      <!-- PREVENTIVAS -->
+      <div class="page" id="page-prev">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="label">Controlados</div><div class="value" id="p_total">–</div><div class="sub">veículos/equipamentos</div></div>
+          <div class="kpi teal"><div class="label">Em Dia</div><div class="value" id="p_ok">–</div><div class="sub" id="p_okPct">–</div></div>
+          <div class="kpi danger"><div class="label">Vencidos</div><div class="value" id="p_vencido">–</div><div class="sub" id="p_vencidoPct">–</div></div>
+          <div class="kpi warn"><div class="label">Atenção</div><div class="value" id="p_atencao">–</div><div class="sub" id="p_atencaoPct">–</div></div>
+        </div>
+        <div class="grid cols-3">
+          <div class="card"><h3>Status Geral</h3><div class="chart-wrap" id="p_statusWrap"><canvas id="p_chartStatus"></canvas></div></div>
+          <div class="card"><h3>Preventivas por Obra</h3><div class="barlist" id="p_porObra"></div></div>
+          <div class="card"><h3>Tipo de Veículo/Equipamento</h3><div class="barlist" id="p_porTipo"></div></div>
+        </div>
+        <div class="grid cols-2">
+          <div class="card"><h3>Status por Tempo — OK</h3><div class="value" style="font-size:28px" id="p_statusTempoPct">–</div></div>
+          <div class="card"><h3>Status por Medidor (KM/Horímetro) — OK</h3><div class="value" style="font-size:28px" id="p_statusMedidorPct">–</div></div>
+        </div>
+      </div>
+
+      <!-- CORRETIVAS -->
+      <div class="page" id="page-corr">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="label">Ocorrências</div><div class="value" id="c_total">–</div><div class="sub">registros</div></div>
+          <div class="kpi teal"><div class="label">Custo Total</div><div class="value" id="c_custo">–</div><div class="sub">soma custo de reparo</div></div>
+          <div class="kpi warn"><div class="label">Sem Custo</div><div class="value" id="c_semCusto">–</div><div class="sub">sem valor registrado</div></div>
+          <div class="kpi"><div class="label">Dias Parado (Média)</div><div class="value" id="c_diasParado">–</div></div>
+          <div class="kpi danger"><div class="label">Sem Evidência</div><div class="value" id="c_semEvidencia">–</div></div>
+        </div>
+        <div class="grid cols-3">
+          <div class="card"><h3>Paradas por Mês</h3><div class="chart-wrap" id="c_mesWrap"><canvas id="c_chartMes"></canvas></div></div>
+          <div class="card"><h3>Custo por Obra</h3><div class="barlist" id="c_custoPorObra"></div></div>
+          <div class="card"><h3>Evidência de Manutenção</h3><div class="chart-wrap" id="c_evWrap"><canvas id="c_chartEv"></canvas></div></div>
+        </div>
+        <div class="grid cols-2">
+          <div class="card"><h3>Principais Motivos</h3><div class="barlist" id="c_motivos"></div></div>
+          <div class="card"><h3>Oficinas Mais Acionadas</h3><div class="barlist" id="c_oficinas"></div></div>
+        </div>
+      </div>
+
+      <!-- ACIDENTES -->
+      <div class="page" id="page-acid">
+        <div class="kpi-grid">
+          <div class="kpi danger"><div class="label">Ocorrências</div><div class="value" id="a_total">–</div><div class="sub">registros na base</div></div>
+          <div class="kpi"><div class="label">Custo de Reparo</div><div class="value" id="a_custo">–</div></div>
+          <div class="kpi teal"><div class="label">Frota Ciente</div><div class="value" id="a_frotaCiente">–</div></div>
+          <div class="kpi navy"><div class="label">SMS Ciente</div><div class="value" id="a_smsCiente">–</div></div>
+        </div>
+        <div class="grid cols-3">
+          <div class="card"><h3>Acidentes por Mês</h3><div class="chart-wrap" id="a_mesWrap"><canvas id="a_chartMes"></canvas></div></div>
+          <div class="card"><h3>Quantidade por Obra</h3><div class="barlist" id="a_porObra"></div></div>
+          <div class="card"><h3>Custo por Obra</h3><div class="barlist" id="a_custoPorObra"></div></div>
+        </div>
+        <div class="grid cols-2">
+          <div class="card"><h3>Tipos de Sinistro</h3><div class="barlist" id="a_tipoSinistro"></div></div>
+          <div class="card"><h3>Frota Utilities Ciente?</h3><div class="chart-wrap" id="a_cienteWrap"><canvas id="a_chartCiente"></canvas></div></div>
+        </div>
+      </div>
+
+      <!-- MULTAS (genérico, aguarda import) -->
+      <div class="page" id="page-multas">
+        <div id="multas-empty" class="card placeholder">
+          <b>Nenhuma base de Multas importada</b>
+          Envie a planilha de multas na aba "Importar" para habilitar esta página automaticamente.
+          <button class="primary" onclick="goToPage('import')">Ir para Importar</button>
+        </div>
+        <div id="multas-content" style="display:none;">
+          <div class="kpi-grid">
+            <div class="kpi"><div class="label">Multas</div><div class="value" id="m_total">–</div></div>
+            <div class="kpi teal"><div class="label">Valor Total</div><div class="value" id="m_valor">–</div></div>
+          </div>
+          <div class="grid cols-2">
+            <div class="card"><h3>Por Mês</h3><div class="chart-wrap" id="m_mesWrap"><canvas id="m_chartMes"></canvas></div></div>
+            <div class="card"><h3>Por Obra / Categoria</h3><div class="barlist" id="m_porObra"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DESCONTOS -->
+      <div class="page" id="page-desc">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="label">Registros</div><div class="value" id="d_total">–</div></div>
+          <div class="kpi teal"><div class="label">Valor da Base</div><div class="value" id="d_valor">–</div></div>
+          <div class="kpi navy"><div class="label">Enviado ao RH</div><div class="value" id="d_enviadoRh">–</div><div class="sub" id="d_enviadoRhPct">–</div></div>
+          <div class="kpi warn"><div class="label">A Regularizar</div><div class="value" id="d_regularizar">–</div></div>
+        </div>
+        <div class="grid cols-3">
+          <div class="card"><h3>Desconto por Mês</h3><div class="chart-wrap" id="d_mesWrap"><canvas id="d_chartMes"></canvas></div></div>
+          <div class="card"><h3>Motivo do Desconto</h3><div class="chart-wrap" id="d_motivoWrap"><canvas id="d_chartMotivo"></canvas></div></div>
+          <div class="card"><h3>Valor por Obra</h3><div class="barlist" id="d_porObra"></div></div>
+        </div>
+        <div class="grid cols-2" style="grid-template-columns:1fr;">
+          <div class="card"><h3>Descontos por Colaborador</h3><div class="cs">Top 10 por valor</div>
+            <table class="mini"><thead><tr><th>Colaborador</th><th>Qtd.</th><th>Valor</th></tr></thead><tbody id="d_tabelaColab"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- KM -->
+      <div class="page" id="page-km">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="label">Veículos Monitorados</div><div class="value" id="k_total">–</div></div>
+          <div class="kpi teal"><div class="label">KM Rodado (último mês)</div><div class="value" id="k_ultimoMes">–</div></div>
+          <div class="kpi navy"><div class="label">Com KM Informado</div><div class="value" id="k_comInformado">–</div></div>
+          <div class="kpi warn"><div class="label">Acima do Contrato</div><div class="value" id="k_acimaContrato">–</div></div>
+          <div class="kpi danger"><div class="label">Leituras a Validar</div><div class="value" id="k_invalidas">–</div></div>
+        </div>
+        <div class="grid cols-2">
+          <div class="card"><h3>KM Rodado por Mês</h3><div class="chart-wrap tall" id="k_mesWrap"><canvas id="k_chartMes"></canvas></div></div>
+          <div class="card"><h3>Veículos com KM Informado</h3><div class="chart-wrap tall" id="k_vqtdWrap"><canvas id="k_chartVqtd"></canvas></div></div>
+        </div>
+        <div class="card"><h3>KM (último mês) por Obra</h3><div class="barlist" id="k_porObra"></div></div>
+      </div>
+
+      <!-- ABASTECIMENTO (genérico, aguarda import) -->
+      <div class="page" id="page-abast">
+        <div id="abast-empty" class="card placeholder">
+          <b>Nenhuma base de Abastecimento importada</b>
+          Envie a planilha de abastecimento na aba "Importar" para habilitar esta página automaticamente.
+          <button class="primary" onclick="goToPage('import')">Ir para Importar</button>
+        </div>
+        <div id="abast-content" style="display:none;">
+          <div class="kpi-grid">
+            <div class="kpi"><div class="label">Total (R$)</div><div class="value" id="b_valor">–</div></div>
+            <div class="kpi teal"><div class="label">Transações</div><div class="value" id="b_qtd">–</div></div>
+            <div class="kpi navy"><div class="label">Litros</div><div class="value" id="b_litros">–</div></div>
+          </div>
+          <div class="grid cols-2">
+            <div class="card"><h3>Custo por Mês</h3><div class="chart-wrap" id="b_mesWrap"><canvas id="b_chartMes"></canvas></div></div>
+            <div class="card"><h3>Custo por Obra</h3><div class="barlist" id="b_porObra"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GOVERNANÇA -->
+      <div class="page" id="page-gov">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="label">Frota Revisada</div><div class="value" id="g_frota">–</div></div>
+          <div class="kpi warn"><div class="label">Ocorrências Mapeadas</div><div class="value" id="g_ocorrencias">–</div><div class="sub">pendências nas bases</div></div>
+          <div class="kpi navy"><div class="label">Base de Multas</div><div class="value" id="g_multas">–</div></div>
+          <div class="kpi teal"><div class="label">Atualização</div><div class="value">1 clique</div><div class="sub">importar planilha nova</div></div>
+        </div>
+        <div class="grid cols-2">
+          <div class="card"><h3>Mapa de Qualidade dos Dados</h3><div class="cs">Pendências encontradas automaticamente</div><div class="barlist" id="g_qualidade"></div></div>
+          <div class="card"><h3>Arquitetura de Atualização</h3><div class="cs">Como este painel se mantém sempre atual</div>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:6px;">
+              <div class="textcard"><b>1. Planilhas do cliente</b><span>Excel de Frota, Preventivas, Corretivas, Acidentes, Descontos, KM (e Multas/Abastecimento quando disponíveis)</span></div>
+              <div class="textcard"><b>2. Importação (aba Importar)</b><span>O Admin sobe os arquivos aqui mesmo — leitura acontece no navegador, sem servidor</span></div>
+              <div class="textcard"><b>3. Processamento automático</b><span>KPIs, gráficos e alertas recalculados na hora</span></div>
+              <div class="textcard"><b>4. Painel atualizado</b><span>Todas as páginas refletem os novos dados imediatamente</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- IMPORTAR -->
+      <div class="page" id="page-import">
+        <div class="card" style="margin-bottom:16px;">
+          <h3>Importar Planilhas</h3>
+          <div class="cs">Envie os arquivos do mês. O painel inteiro é recalculado automaticamente — sem precisar de mim, sem precisar do Power BI. Mantenha os nomes de coluna iguais aos das planilhas originais.</div>
+        </div>
+        <div class="import-grid" id="importGrid"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========================= PALETA ========================= */
+const COLORS = { blue:'#0D83C6', navy:'#00264C', blueDark:'#0D466F', teal:'#18686E', tealDark:'#114E52', cyan:'#C1EEF1', gold:'#DEBA08', danger:'#C0392B', muted:'#5C7080' };
+const PAL = [COLORS.blue, COLORS.teal, COLORS.gold, COLORS.blueDark, COLORS.tealDark, COLORS.danger, COLORS.cyan, COLORS.muted];
+Chart.defaults.font.family = "'Segoe UI', Inter, Arial, sans-serif";
+Chart.defaults.color = COLORS.muted;
+Chart.defaults.font.size = 11;
+const CHARTS = {}; // registry to destroy/recreate
+
+function fmtMoney(v){ if(v==null||isNaN(v)) return '—'; return 'R$ ' + Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtMoneyShort(v){ if(v==null||isNaN(v)) return '—'; if(Math.abs(v)>=1e6) return 'R$ '+(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2})+' mi'; if(Math.abs(v)>=1e3) return 'R$ '+(v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mil'; return fmtMoney(v); }
+function fmtNum(v){ if(v==null||isNaN(v)) return '—'; return Number(v).toLocaleString('pt-BR'); }
+function pct(a,b){ if(!b) return 0; return Math.round(1000*a/b)/10; }
+function mkChart(id, config){ if(CHARTS[id]){ CHARTS[id].destroy(); } const ctx=document.getElementById(id); if(!ctx) return; CHARTS[id]=new Chart(ctx, config); }
+function barList(el, dataObj, opts={}){
+  const entries = Object.entries(dataObj).filter(([k,v])=>v!=null);
+  const max = Math.max(...entries.map(e=>e[1]), 1);
+  el.innerHTML = entries.map(([k,v],i)=>{
+    const w = Math.max(4, Math.round(100*v/max));
+    const color = opts.color || PAL[i%PAL.length];
+    const val = opts.money ? fmtMoneyShort(v) : fmtNum(v);
+    return `<div class="row"><div class="name" title="${k}">${k}</div><div class="track"><div class="fill" style="width:${w}%;background:${color}"></div></div><div class="num">${val}</div></div>`;
+  }).join('');
+}
+
+/* ========================= DADOS BASE (das planilhas enviadas hoje) ========================= */
+let AGG = {
+  frota: {
+    total: 656, custoMensal: 3766563.01, custoMedio: 3766563.01/656,
+    porObraQtd: {"CSU":145,"COMGÁS":84,"NATURGY RJ":63,"NATURGY SP":61,"CGMT":49,"N-RJ":35},
+    porObraCusto: {"CSU":1073885.00,"COMGÁS":375128.31,"ESGÁS":335709.08,"CGMT":306730.84,"N-RJ":257905.49,"NATURGY SP":243634.18},
+    locadoraTop: {"LOCALIZA RAC":152,"MOVIDA GTF":128,"VAMOS":68,"MOBI 7":67,"VAMOS LOCAÇÕES":47,"LOCALIZA":29,"LM":23,"ARMAC":22},
+    tempoRestanteBucket: {"0m":156,"1-3m":51,"4-6m":0,"7-12m":42,"13-18m":29,"19-24m":169,"25m+":61},
+    mixTipo: {"PESADA":208,"LEVE":177,"UTILITÁRIO":89,"FURGÃO":69,"MULTIPLOS USUÁRIOS":16,"MINI VAN":8,"PASSEIO":6,"VUC":6},
+    rastreador: {"MOBI 7":174,"ITURAN":154,"ROTA EXATA":136,"MOOVI":35,"MOVI":28,"RIO":23,"GEOSAT":13}
+  },
+  preventivas: {
+    total: 294, ok: 212, atencao: 24, vencido: 58,
+    porObra: {"N-SP":79,"TATUI":33,"CSU":23,"INTEGRA":22,"SÃO ROQUE":17,"RIO +":3},
+    porTipo: {"LEVE":117,"PESADA":84,"PESADO":51,"EQUIPAMENTO":24,"UTILITÁRIO":22,"FURGÃO":9},
+    statusTempoOkPct: 82.7, statusMedidorOkPct: 74.3
+  },
+  corretivas: {
+    total: 258, custoTotal: 44778.77, semCusto: 205, diasParadoMedia: 3.4, semEvidencia: 68,
+    porMes: {1:23,2:18,3:14,4:8,5:28,6:80,7:47,8:36},
+    custoPorObra: {"LIGHT":20104.26,"N-SP":13190.51,"SÃO ROQUE":9872.50,"TATUI":1611.50},
+    evidencia: {"SIM":137,"NÃO":68,"SIM LOCADORA":49},
+    topMotivo: {"CONSERTO PNEU":13,"TROCA DE BATERIA":10,"TROCA DE FILTRO":10,"SERVIÇO NO CHICOTE ELETRICO":6,"BATERIA RUIM":4,"TROCA DE LANTERNA":4},
+    oficinas: {"CSMCAR FUNILARIA E PINTURA":71,"SK CENTRO AUTOMOTIVO":49,"FLANCAR":15,"SILVANO BORRACHARIA":10,"FERREIRATRUCK":10,"FROTA CJATO":9,"LOCALIZA":8}
+  },
+  acidentes: {
+    total: 74, custoTotal: 511362.53,
+    porMes: {1:2,2:3,3:6,4:8,5:5,6:8,7:15,8:3},
+    porObra: {"N-RJ":27,"CSU":23,"LIGHT":10,"N-SP":4,"SÃO ROQUE":4,"INTEGRA":3},
+    custoPorObra: {"CSU":484287.53,"INTEGRA":8150.00,"N-RJ":5430.00,"SÃO ROQUE":5123.00,"LIGHT":4392.00,"N-SP":3980.00},
+    tipoSinistro: {"COLISÃO TRASEIRA":19,"ABALROAMENTO":10,"AVARIA":9,"COLISÃO LATERAL":9,"COLISÃO FRONTAL":7,"COLISÃO EM OBJETO":2},
+    frotaCiente: {"SIM":41,"NÃO":33}, smsCiente: {"SIM":56,"NÃO":12,"NÃO INFORMOU":6}
+  },
+  descontos: {
+    total: 238, valorTotal: 127235.74,
+    porMes: {1:8112.65,2:29488.73,3:13973.60,4:3834.96,5:11106.35,6:22706.32,7:10905.41,8:20655.58},
+    porObra: {"CSU":115802.56,"LIGHT":7894.45,"CGMT":1770.92,"N-RJ":1329.18,"N-SP":423.63},
+    enviadoRh: {"SIM":180,"NÃO":22,"ADM":16,"DESCONTO MEDIÇÃO":11,"NÃO INFORMADO":4},
+    motivoTop: {"MULTAS":211,"COLISÃO":13,"AVARIA":12,"PERDA DO CARTÃO ID":1},
+    topColab: [
+      {nome:"PETERSON TOMIATTI",qtd:3,valor:12392.16},{nome:"LUIZ CARLOS ROCHA",qtd:2,valor:8071.25},
+      {nome:"EVERALDO RODRIGUES",qtd:1,valor:6398.00},{nome:"BRUNO DIAS",qtd:1,valor:6267.57},
+      {nome:"MAILTON SANTOS",qtd:1,valor:5322.00},{nome:"ARGUS",qtd:11,valor:4623.61},
+      {nome:"BENEDITO CESAR PIRES DE CAMARGO",qtd:1,valor:4455.00},{nome:"JOAO DE OLIVEIRA ERNESTO",qtd:1,valor:4029.55},
+      {nome:"PEDRO HENRIQUE SANTOS MELO",qtd:10,valor:4011.27},{nome:"RODOLFO MONTEIRO FERNANDES",qtd:11,valor:3936.69}
+    ]
+  },
+  km: {
+    total: 273,
+    porMes: {"JAN":500364,"FEV":201304,"MAR":202511,"ABR":219186,"MAI":1211422,"JUN":1123077,"JUL":0},
+    veiculosInformadoPorMes: {"JAN":136,"FEV":139,"MAR":143,"ABR":191,"MAI":210,"JUN":195,"JUL":140},
+    ultimoMesPorObra: {"SÃO ROQUE":134849,"N-RJ":36514,"LIGHT":14008,"RIO+":6763},
+    leiturasInvalidas: 10, acimaContrato: 1, comInformadoUltimoMes: 138
+  },
+  multas: null,
+  abastecimento: null
+};
+
+let dataImported = false;
+
+/* ========================= NAVEGAÇÃO ========================= */
+function goToPage(page){
+  document.querySelectorAll('.navitem').forEach(n=>n.classList.toggle('active', n.dataset.page===page));
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active', p.id==='page-'+page));
+  const titles = {visao:'Visão Executiva', frota:'Gestão de Frota', prev:'Manutenção Preventiva', corr:'Manutenção Corretiva',
+    acid:'Acidentes & Sinistros', multas:'Multas', desc:'Desconto Colaborador', km:'Quilometragem da Frota',
+    abast:'Abastecimento', gov:'Governança, Qualidade & Padronizações', import:'Importar Planilhas'};
+  document.getElementById('pageTitle').textContent = titles[page] || page;
+}
+document.querySelectorAll('.navitem').forEach(n=>n.addEventListener('click',()=>goToPage(n.dataset.page)));
+
+/* ========================= RENDER: VISÃO ========================= */
+function renderVisao(){
+  const f=AGG.frota, p=AGG.preventivas, c=AGG.corretivas, a=AGG.acidentes, d=AGG.descontos, m=AGG.multas;
+  document.getElementById('v_frotaTotal').textContent = fmtNum(f.total);
+  document.getElementById('v_custoLocacao').textContent = fmtMoneyShort(f.custoMensal);
+  document.getElementById('v_prevVencidas').textContent = fmtNum(p.vencido);
+  document.getElementById('v_prevVencidasPct').textContent = pct(p.vencido,p.total)+'% do controle';
+  document.getElementById('v_custoCorretivas').textContent = fmtMoneyShort(c.custoTotal);
+  document.getElementById('v_corretivasSemCusto').textContent = c.semCusto+' sem custo informado';
+  document.getElementById('v_acidentesQtd').textContent = fmtNum(a.total);
+  document.getElementById('v_acidentesCusto').textContent = fmtMoneyShort(a.custoTotal)+' em reparos';
+  document.getElementById('v_multasQtd').textContent = m ? fmtNum(m.total) : '—';
+  document.getElementById('v_multasValor').textContent = m ? fmtMoneyShort(m.valor) : 'importar planilha';
+  document.getElementById('v_descValor').textContent = fmtMoneyShort(d.valorTotal);
+  document.getElementById('v_descQtd').textContent = d.total+' registros';
+
+  barList(document.getElementById('v_frotaPorObra'), f.porObraQtd);
+  barList(document.getElementById('v_locadoras'), f.locadoraTop);
+
+  const semEvPct = pct(c.semEvidencia, c.total);
+  const descForaPct = pct(d.total - (d.enviadoRh['SIM']||0), d.total);
+  const farolItems = [
+    {label:'Preventiva vencida', val:p.vencido, pct:pct(p.vencido,p.total), color:COLORS.gold, bg:'#FDF3D6'},
+    {label:'Corretiva sem evidência', val:c.semEvidencia, pct:semEvPct, color:COLORS.danger, bg:'#FBE4E1'},
+    {label:'Desconto fora do SIM/RH', val:d.total-(d.enviadoRh['SIM']||0), pct:descForaPct, color:COLORS.gold, bg:'#FDF3D6'},
+  ];
+  if(m){ farolItems.splice(2,0,{label:'Identificação de multa vencida', val:m.vencidas||0, pct:pct(m.vencidas||0,m.total), color:COLORS.danger, bg:'#FBE4E1'}); }
+  document.getElementById('v_farol').innerHTML = farolItems.map(it=>
+    `<div class="alertcard" style="background:${it.bg};border-left:4px solid ${it.color}">
+      <span>${it.label}<br><span style="color:var(--muted);font-size:10.5px">${fmtNum(it.val)} (${it.pct}%)</span></span>
+    </div>`).join('');
+
+  document.getElementById('v_leitura').innerHTML = `
+    <div class="textcard"><b>Base de frota</b><span>${fmtNum(f.total)} veículos e ${fmtMoneyShort(f.custoMensal)} em locação mensal.</span></div>
+    <div class="textcard"><b>Custo corretivo</b><span>${fmtMoneyShort(c.custoTotal)} somados; ${c.semCusto} registros seguem sem valor.</span></div>
+    <div class="textcard"><b>${m?'Multas exigem ação':'Multas pendente de importação'}</b><span>${m ? (fmtNum(m.vencidas||0)+' registros com identificação vencida.') : 'Envie a planilha de multas para habilitar este indicador.'}</span></div>
+  `;
+
+  const mesesLabels = m ? Object.keys(m.porMes) : [];
+  const mesesData = m ? Object.values(m.porMes) : [];
+  document.getElementById('v_multasMesWrap').innerHTML = m ? '<canvas id="v_chartMultasMes"></canvas>' : '<div class="placeholder" style="padding:20px"><b>Sem dados de multas</b>Importe a planilha correspondente.</div>';
+  if(m) mkChart('v_chartMultasMes', {type:'line', data:{labels:mesesLabels, datasets:[{data:mesesData, borderColor:COLORS.blue, backgroundColor:COLORS.blue, tension:.3}]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+}
+
+/* ========================= RENDER: FROTA ========================= */
+function renderFrota(){
+  const f=AGG.frota;
+  document.getElementById('f_qtd').textContent = fmtNum(f.total);
+  document.getElementById('f_custoMensal').textContent = fmtMoneyShort(f.custoMensal);
+  document.getElementById('f_custoMedio').textContent = fmtMoneyShort(f.custoMedio);
+  barList(document.getElementById('f_qtdPorObra'), f.porObraQtd);
+  barList(document.getElementById('f_custoPorObra'), f.porObraCusto, {money:true});
+  barList(document.getElementById('f_locadoras'), f.locadoraTop);
+  barList(document.getElementById('f_rastreador'), f.rastreador);
+  mkChart('f_chartTempo', {type:'bar', data:{labels:Object.keys(f.tempoRestanteBucket), datasets:[{data:Object.values(f.tempoRestanteBucket), backgroundColor:COLORS.gold, borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}}}});
+  mkChart('f_chartMix', {type:'doughnut', data:{labels:Object.keys(f.mixTipo), datasets:[{data:Object.values(f.mixTipo), backgroundColor:PAL, borderColor:'#fff', borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}}}}});
+}
+
+/* ========================= RENDER: PREVENTIVAS ========================= */
+function renderPrev(){
+  const p=AGG.preventivas;
+  document.getElementById('p_total').textContent = fmtNum(p.total);
+  document.getElementById('p_ok').textContent = fmtNum(p.ok); document.getElementById('p_okPct').textContent = pct(p.ok,p.total)+'% do total';
+  document.getElementById('p_vencido').textContent = fmtNum(p.vencido); document.getElementById('p_vencidoPct').textContent = pct(p.vencido,p.total)+'% do total';
+  document.getElementById('p_atencao').textContent = fmtNum(p.atencao); document.getElementById('p_atencaoPct').textContent = pct(p.atencao,p.total)+'% do total';
+  document.getElementById('p_statusTempoPct').textContent = p.statusTempoOkPct+'%';
+  document.getElementById('p_statusMedidorPct').textContent = p.statusMedidorOkPct+'%';
+  barList(document.getElementById('p_porObra'), p.porObra);
+  barList(document.getElementById('p_porTipo'), p.porTipo);
+  mkChart('p_chartStatus', {type:'doughnut', data:{labels:['Em dia','Atenção','Vencido'], datasets:[{data:[p.ok,p.atencao,p.vencido], backgroundColor:[COLORS.teal,COLORS.gold,COLORS.danger], borderColor:'#fff', borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{boxWidth:9}}}}});
+}
+
+/* ========================= RENDER: CORRETIVAS ========================= */
+const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+function renderCorr(){
+  const c=AGG.corretivas;
+  document.getElementById('c_total').textContent = fmtNum(c.total);
+  document.getElementById('c_custo').textContent = fmtMoney(c.custoTotal);
+  document.getElementById('c_semCusto').textContent = fmtNum(c.semCusto);
+  document.getElementById('c_diasParado').textContent = c.diasParadoMedia.toFixed(1)+' dias';
+  document.getElementById('c_semEvidencia').textContent = fmtNum(c.semEvidencia);
+  barList(document.getElementById('c_custoPorObra'), c.custoPorObra, {money:true});
+  barList(document.getElementById('c_motivos'), c.topMotivo);
+  barList(document.getElementById('c_oficinas'), c.oficinas);
+  const meses = Object.keys(c.porMes).sort((a,b)=>a-b);
+  mkChart('c_chartMes', {type:'bar', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>c.porMes[m]), backgroundColor:COLORS.blue, borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}}}});
+  mkChart('c_chartEv', {type:'doughnut', data:{labels:Object.keys(c.evidencia), datasets:[{data:Object.values(c.evidencia), backgroundColor:[COLORS.teal,COLORS.danger,COLORS.blue,COLORS.muted], borderColor:'#fff', borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}}}}});
+}
+
+/* ========================= RENDER: ACIDENTES ========================= */
+function renderAcid(){
+  const a=AGG.acidentes;
+  document.getElementById('a_total').textContent = fmtNum(a.total);
+  document.getElementById('a_custo').textContent = fmtMoneyShort(a.custoTotal);
+  document.getElementById('a_frotaCiente').textContent = pct(a.frotaCiente['SIM']||0, a.total)+'%';
+  document.getElementById('a_smsCiente').textContent = pct(a.smsCiente['SIM']||0, a.total)+'%';
+  barList(document.getElementById('a_porObra'), a.porObra);
+  barList(document.getElementById('a_custoPorObra'), a.custoPorObra, {money:true});
+  barList(document.getElementById('a_tipoSinistro'), a.tipoSinistro);
+  const meses = Object.keys(a.porMes).sort((x,y)=>x-y);
+  mkChart('a_chartMes', {type:'bar', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>a.porMes[m]), backgroundColor:COLORS.danger, borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}}}});
+  mkChart('a_chartCiente', {type:'doughnut', data:{labels:Object.keys(a.frotaCiente), datasets:[{data:Object.values(a.frotaCiente), backgroundColor:[COLORS.teal,COLORS.danger], borderColor:'#fff', borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom'}}}});
+}
+
+/* ========================= RENDER: DESCONTOS ========================= */
+function renderDesc(){
+  const d=AGG.descontos;
+  document.getElementById('d_total').textContent = fmtNum(d.total);
+  document.getElementById('d_valor').textContent = fmtMoney(d.valorTotal);
+  document.getElementById('d_enviadoRh').textContent = fmtNum(d.enviadoRh['SIM']||0);
+  document.getElementById('d_enviadoRhPct').textContent = pct(d.enviadoRh['SIM']||0, d.total)+'% dos registros';
+  document.getElementById('d_regularizar').textContent = fmtNum(d.total-(d.enviadoRh['SIM']||0));
+  barList(document.getElementById('d_porObra'), d.porObra, {money:true});
+  const meses = Object.keys(d.porMes).sort((a,b)=>a-b);
+  mkChart('d_chartMes', {type:'line', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>d.porMes[m]), borderColor:COLORS.teal, backgroundColor:COLORS.teal, tension:.3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+  mkChart('d_chartMotivo', {type:'doughnut', data:{labels:Object.keys(d.motivoTop), datasets:[{data:Object.values(d.motivoTop), backgroundColor:PAL, borderColor:'#fff', borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}}}}});
+  document.getElementById('d_tabelaColab').innerHTML = d.topColab.map(r=>{
+    const tag = r.qtd>1 ? 'mid' : 'ok';
+    return `<tr><td>${r.nome}</td><td>${r.qtd}</td><td>${fmtMoney(r.valor)}</td></tr>`;
+  }).join('');
+}
+
+/* ========================= RENDER: KM ========================= */
+function renderKm(){
+  const k=AGG.km;
+  const mesesK = Object.keys(k.porMes);
+  const ultimo = mesesK[mesesK.length-1];
+  document.getElementById('k_total').textContent = fmtNum(k.total);
+  document.getElementById('k_ultimoMes').textContent = fmtNum(k.porMes[ultimo])+' km';
+  document.getElementById('k_comInformado').textContent = fmtNum(k.comInformadoUltimoMes);
+  document.getElementById('k_acimaContrato').textContent = fmtNum(k.acimaContrato);
+  document.getElementById('k_invalidas').textContent = fmtNum(k.leiturasInvalidas);
+  barList(document.getElementById('k_porObra'), k.ultimoMesPorObra);
+  mkChart('k_chartMes', {type:'line', data:{labels:mesesK, datasets:[{data:Object.values(k.porMes), borderColor:COLORS.blue, backgroundColor:COLORS.blue, tension:.3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+  mkChart('k_chartVqtd', {type:'bar', data:{labels:mesesK, datasets:[{data:Object.values(k.veiculosInformadoPorMes), backgroundColor:COLORS.teal, borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}}}});
+}
+
+/* ========================= RENDER: MULTAS / ABASTECIMENTO (genérico) ========================= */
+function renderMultas(){
+  const m=AGG.multas;
+  document.getElementById('multas-empty').style.display = m ? 'none' : 'block';
+  document.getElementById('multas-content').style.display = m ? 'block' : 'none';
+  if(!m) return;
+  document.getElementById('m_total').textContent = fmtNum(m.total);
+  document.getElementById('m_valor').textContent = fmtMoney(m.valor);
+  barList(document.getElementById('m_porObra'), m.porCategoria||{});
+  mkChart('m_chartMes', {type:'bar', data:{labels:Object.keys(m.porMes), datasets:[{data:Object.values(m.porMes), backgroundColor:COLORS.blue, borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+}
+function renderAbast(){
+  const b=AGG.abastecimento;
+  document.getElementById('abast-empty').style.display = b ? 'none' : 'block';
+  document.getElementById('abast-content').style.display = b ? 'block' : 'none';
+  if(!b) return;
+  document.getElementById('b_valor').textContent = fmtMoney(b.valor);
+  document.getElementById('b_qtd').textContent = fmtNum(b.qtd);
+  document.getElementById('b_litros').textContent = fmtNum(b.litros);
+  barList(document.getElementById('b_porObra'), b.porObra||{}, {money:true});
+  mkChart('b_chartMes', {type:'bar', data:{labels:Object.keys(b.porMes), datasets:[{data:Object.values(b.porMes), backgroundColor:COLORS.navy, borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+}
+
+/* ========================= RENDER: GOVERNANÇA ========================= */
+function renderGov(){
+  const f=AGG.frota,c=AGG.corretivas,d=AGG.descontos,k=AGG.km,m=AGG.multas,p=AGG.preventivas;
+  document.getElementById('g_frota').textContent = fmtNum(f.total);
+  const ocorrencias = c.semCusto + c.semEvidencia + (d.total-(d.enviadoRh['SIM']||0)) + k.leiturasInvalidas;
+  document.getElementById('g_ocorrencias').textContent = fmtNum(ocorrencias);
+  document.getElementById('g_multas').textContent = m ? fmtNum(m.total) : '—';
+  barList(document.getElementById('g_qualidade'), {
+    'Preventiva vencida': p.vencido,
+    'Corretiva sem custo': c.semCusto,
+    'Corretiva sem evidência': c.semEvidencia,
+    'Desconto fora do SIM/RH': d.total-(d.enviadoRh['SIM']||0),
+    'KM — leituras a validar': k.leiturasInvalidas
+  }, {color: COLORS.gold});
+}
+
+function renderAll(){
+  renderVisao(); renderFrota(); renderPrev(); renderCorr(); renderAcid();
+  renderDesc(); renderKm(); renderMultas(); renderAbast(); renderGov();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleDateString('pt-BR');
+  document.getElementById('statusText').textContent = dataImported ? 'Dados importados pelo Admin' : 'Dados de exemplo (bases enviadas)';
+  document.getElementById('statusDot').classList.toggle('imported', dataImported);
+}
+
+/* ========================= IMPORTAÇÃO (SheetJS) ========================= */
+function readWorkbook(file){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = e => { try{ resolve(XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true})); } catch(err){ reject(err); } };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+function sheetToRows(wb, sheetName){
+  const ws = sheetName ? wb.Sheets[sheetName] : wb.Sheets[wb.SheetNames[0]];
+  if(!ws) return [];
+  const raw = XLSX.utils.sheet_to_json(ws, {defval:null});
+  // normaliza cabeçalhos: remove espaços extras no início/fim das chaves
+  return raw.map(row=>{
+    const clean = {};
+    Object.keys(row).forEach(k=>{ clean[k.trim()] = row[k]; });
+    return clean;
+  });
+}
+function num(v){ if(v==null||v==='') return null; const n = typeof v==='number'? v : parseFloat(String(v).replace(/\./g,'').replace(',','.')); return isNaN(n)?null:n; }
+function up(v){ return v==null? '' : String(v).trim().toUpperCase(); }
+function groupSum(rows, keyField, valField){ const o={}; rows.forEach(r=>{ const k=up(r[keyField])||'(vazio)'; const v=num(r[valField])||0; o[k]=(o[k]||0)+v; }); return o; }
+function groupCount(rows, keyField){ const o={}; rows.forEach(r=>{ const k=up(r[keyField])||'(vazio)'; o[k]=(o[k]||0)+1; }); return o; }
+function topN(obj, n){ return Object.fromEntries(Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,n)); }
+
+function parseFrota(wb){
+  const rows = sheetToRows(wb, 'Base') .length ? sheetToRows(wb,'Base') : sheetToRows(wb);
+  const custoField='CUSTO DE LOCAÇÃO', obraField='OBRA', locField='LOCADORA', tipoField='TIPO DE FROTA (LEVE, PESADO, FURGÃO OU UTILITÁRIO)', tempoField='TEMPO RESTANTE', rastField='RASTREADOR';
+  const custoTotal = rows.reduce((s,r)=>s+(num(r[custoField])||0),0);
+  const buckets = {'0m':0,'1-3m':0,'4-6m':0,'7-12m':0,'13-18m':0,'19-24m':0,'25m+':0};
+  rows.forEach(r=>{ const t=num(r[tempoField]); if(t==null) return; if(t<=0) buckets['0m']++; else if(t<=3) buckets['1-3m']++; else if(t<=6) buckets['4-6m']++; else if(t<=12) buckets['7-12m']++; else if(t<=18) buckets['13-18m']++; else if(t<=24) buckets['19-24m']++; else buckets['25m+']++; });
+  return {
+    total: rows.length, custoMensal: custoTotal, custoMedio: rows.length? custoTotal/rows.length : 0,
+    porObraQtd: topN(groupCount(rows,obraField),10), porObraCusto: topN(groupSum(rows,obraField,custoField),10),
+    locadoraTop: topN(groupCount(rows,locField),8), tempoRestanteBucket: buckets,
+    mixTipo: topN(groupCount(rows,tipoField),10), rastreador: topN(groupCount(rows,rastField),8)
+  };
+}
+function parsePreventivas(wb){
+  let rows = [];
+  wb.SheetNames.forEach(name=>{ sheetToRows(wb,name).forEach(r=>rows.push(r)); });
+  const statusField='STATUS GERAL', obraField='OBRA', tipoField='TIPO DE VEICULO';
+  const ok = rows.filter(r=>up(r[statusField])==='OK').length;
+  const atencao = rows.filter(r=>up(r[statusField])==='ATENÇÃO').length;
+  const vencido = rows.filter(r=>up(r[statusField])==='VENCIDO').length;
+  const okTempo = rows.filter(r=>up(r['STATUS POR TEMPO'])==='OK').length;
+  const okMedidor = rows.filter(r=>up(r['STATUS POR KM'])==='OK'||up(r['STATUS POR HORA'])==='OK').length;
+  return { total: rows.length, ok, atencao, vencido, porObra: topN(groupCount(rows,obraField),8), porTipo: topN(groupCount(rows,tipoField),8),
+    statusTempoOkPct: rows.length? Math.round(1000*okTempo/rows.length)/10:0, statusMedidorOkPct: rows.length? Math.round(1000*okMedidor/rows.length)/10:0 };
+}
+function parseCorretivas(wb){
+  const rows = sheetToRows(wb);
+  const custoField='CUSTO DE REPARO', obraField='OBRA', motivoField='MOTIVO MANUTENÇÃO (PEÇA)', oficinaField='NOME DA OFICINA', diasField='DIAS PARADO', dataField='DATA QUE O VEICULO PAROU', evField='TEM EVIDENCIA DA MANUTENÇÃO';
+  const custoTotal = rows.reduce((s,r)=>s+(num(r[custoField])||0),0);
+  const semCusto = rows.filter(r=>!num(r[custoField])).length;
+  const dias = rows.map(r=>num(r[diasField])).filter(v=>v!=null);
+  const semEvidencia = rows.filter(r=>up(r[evField])==='NÃO'||up(r[evField])==='NAO').length;
+  const porMes={}; rows.forEach(r=>{ const d=r[dataField]; if(d instanceof Date){ const m=d.getMonth()+1; porMes[m]=(porMes[m]||0)+1; } });
+  return { total: rows.length, custoTotal, semCusto, diasParadoMedia: dias.length? dias.reduce((a,b)=>a+b,0)/dias.length:0, semEvidencia,
+    porMes, custoPorObra: topN(groupSum(rows,obraField,custoField),8), evidencia: topN(groupCount(rows,evField),6),
+    topMotivo: topN(groupCount(rows,motivoField),8), oficinas: topN(groupCount(rows,oficinaField),8) };
+}
+function parseAcidentes(wb){
+  const rows = sheetToRows(wb);
+  const custoField='CUSTO DE REPARO', obraField='OBRA', tipoField='TIPO DE SINISTRO', dataField='DATA DO ACIDENTE/SINISTRO', frotaField='FROTAS UTILITIES CIENTE?', smsField='ENGENHEIRO DE SMS CIENTE?';
+  const custoTotal = rows.reduce((s,r)=>s+(num(r[custoField])||0),0);
+  const porMes={}; rows.forEach(r=>{ const d=r[dataField]; if(d instanceof Date){ const m=d.getMonth()+1; porMes[m]=(porMes[m]||0)+1; } });
+  return { total: rows.length, custoTotal, porMes, porObra: topN(groupCount(rows,obraField),8), custoPorObra: topN(groupSum(rows,obraField,custoField),8),
+    tipoSinistro: topN(groupCount(rows,tipoField),8), frotaCiente: groupCount(rows,frotaField), smsCiente: groupCount(rows,smsField) };
+}
+function parseDescontos(wb){
+  const rows = sheetToRows(wb);
+  const valField='VALOR DO DESCONTO', obraField='OBRA', motivoField='MOTIVO DESCONTO', mesField='MÊS COMPETENCIA', rhField='ENVIADO AO RH', nomeField='NOME COMPLETO';
+  const valorTotal = rows.reduce((s,r)=>s+(num(r[valField])||0),0);
+  const porMes={}; rows.forEach(r=>{ const d=r[mesField]; if(d instanceof Date){ const m=d.getMonth()+1; porMes[m]=(porMes[m]||0)+(num(r[valField])||0); } });
+  const porColab = {};
+  rows.forEach(r=>{ const nm=up(r[nomeField])||'(vazio)'; if(!porColab[nm]) porColab[nm]={qtd:0,valor:0}; porColab[nm].qtd++; porColab[nm].valor += (num(r[valField])||0); });
+  const topColab = Object.entries(porColab).sort((a,b)=>b[1].valor-a[1].valor).slice(0,10).map(([nome,v])=>({nome,qtd:v.qtd,valor:v.valor}));
+  return { total: rows.length, valorTotal, porMes, porObra: topN(groupSum(rows,obraField,valField),8),
+    enviadoRh: groupCount(rows,rhField), motivoTop: topN(groupCount(rows,motivoField),6), topColab };
+}
+function parseKm(wb){
+  const rows = sheetToRows(wb);
+  const cols = Object.keys(rows[0]||{}).filter(c=>c.toUpperCase().includes('KM RODADO') && !c.toUpperCase().includes('MÉDIA'));
+  const porMes={}, veiculosInformadoPorMes={};
+  cols.forEach(c=>{ const label=c.replace(/KM RODADO/i,'').trim(); let sum=0,cnt=0,invalid=0;
+    rows.forEach(r=>{ const v=num(r[c]); if(v==null) return; if(v<0){ invalid++; return;} if(v>0) cnt++; sum+=v; });
+    porMes[label]=sum; veiculosInformadoPorMes[label]=cnt; });
+  let invalidasTotal=0; rows.forEach(r=>cols.forEach(c=>{ const v=num(r[c]); if(v!=null && v<0) invalidasTotal++; }));
+  const lastCol = cols[cols.length-1];
+  const ultimoMesPorObra = topN(groupSum(rows,'OBRA', lastCol),8);
+  const comInformadoUltimoMes = rows.filter(r=>(num(r[lastCol])||0)>0).length;
+  const acimaContrato = rows.filter(r=> (num(r[lastCol])||0) > (num(r['KM CONTRATO COM LOCADORA'])||Infinity) ).length;
+  return { total: rows.length, porMes, veiculosInformadoPorMes, ultimoMesPorObra, leiturasInvalidas: invalidasTotal, acimaContrato, comInformadoUltimoMes };
+}
+/* genérico p/ Multas e Abastecimento — sem schema fixo conhecido */
+function findCol(headers, keywords){ return headers.find(h=> keywords.some(k=>h.toUpperCase().includes(k))); }
+function parseGenericMultas(wb){
+  const rows = sheetToRows(wb); if(!rows.length) return null;
+  const headers = Object.keys(rows[0]);
+  const valCol = findCol(headers,['VALOR']) , dataCol = findCol(headers,['DATA']), catCol = findCol(headers,['OBRA','GRAVIDADE','STATUS','CATEGORIA']);
+  const valor = valCol ? rows.reduce((s,r)=>s+(num(r[valCol])||0),0) : 0;
+  const porMes={}; if(dataCol){ rows.forEach(r=>{ const d=r[dataCol]; if(d instanceof Date){ const m=MESES_ABREV[d.getMonth()]; porMes[m]=(porMes[m]||0)+1; } }); }
+  const porCategoria = catCol ? topN(groupCount(rows,catCol),8) : {};
+  const vencidas = rows.filter(r=>{ const s=up(r[findCol(headers,['STATUS','IDENTIFICAÇÃO'])||'']); return s.includes('VENCID'); }).length;
+  return { total: rows.length, valor, porMes, porCategoria, vencidas };
+}
+function parseGenericAbastecimento(wb){
+  const rows = sheetToRows(wb); if(!rows.length) return null;
+  const headers = Object.keys(rows[0]);
+  const valCol = findCol(headers,['VALOR']), litCol = findCol(headers,['LITRO']), dataCol = findCol(headers,['DATA']), obraCol = findCol(headers,['OBRA']);
+  const valor = valCol ? rows.reduce((s,r)=>s+(num(r[valCol])||0),0) : 0;
+  const litros = litCol ? rows.reduce((s,r)=>s+(num(r[litCol])||0),0) : 0;
+  const porMes={}; if(dataCol){ rows.forEach(r=>{ const d=r[dataCol]; if(d instanceof Date){ const m=MESES_ABREV[d.getMonth()]; porMes[m]=(porMes[m]||0)+(num(r[valCol])||0); } }); }
+  const porObra = obraCol ? topN(groupSum(rows,obraCol,valCol),8) : {};
+  return { qtd: rows.length, valor, litros, porMes, porObra };
+}
+
+const IMPORT_CONFIG = [
+  {key:'frota', label:'Relação da Frota', desc:'Ex.: Relação_Frota_-_Utilites.xlsx (aba "Base")', parser:parseFrota},
+  {key:'preventivas', label:'Preventivas', desc:'Ex.: Preventivas_Contrato.xlsx (abas "Leves e Pesados" + "Equipamentos")', parser:parsePreventivas},
+  {key:'corretivas', label:'Corretivas', desc:'Ex.: Corretivas_Contrato.xlsx', parser:parseCorretivas},
+  {key:'acidentes', label:'Acidentes', desc:'Ex.: Acidentes_Contrato.xlsx', parser:parseAcidentes},
+  {key:'descontos', label:'Descontos / Multas RH', desc:'Ex.: Gestão_de_Descontos.xlsx', parser:parseDescontos},
+  {key:'km', label:'Quilometragem', desc:'Ex.: Gestão_de_Quilometragem_da_Frota.xlsx', parser:parseKm},
+  {key:'multas', label:'Multas (base específica)', desc:'Planilha de multas de trânsito — colunas de valor/data detectadas automaticamente', parser:parseGenericMultas},
+  {key:'abastecimento', label:'Abastecimento', desc:'Planilha de abastecimento — colunas de valor/litros/data detectadas automaticamente', parser:parseGenericAbastecimento},
+];
+const AGG_KEY = {frota:'frota',preventivas:'preventivas',corretivas:'corretivas',acidentes:'acidentes',descontos:'descontos',km:'km',multas:'multas',abastecimento:'abastecimento'};
+
+function buildImportGrid(){
+  const grid = document.getElementById('importGrid');
+  grid.innerHTML = IMPORT_CONFIG.map(cfg => `
+    <div class="upload-slot" id="slot-${cfg.key}">
+      <h4>${cfg.label}</h4>
+      <p>${cfg.desc}</p>
+      <input type="file" accept=".xlsx,.xls" data-key="${cfg.key}">
+      <div class="status" id="status-${cfg.key}"></div>
+    </div>
+  `).join('');
+  grid.querySelectorAll('input[type=file]').forEach(inp=>{
+    inp.addEventListener('change', async e=>{
+      const key = inp.dataset.key; const file = e.target.files[0]; if(!file) return;
+      const statusEl = document.getElementById('status-'+key); const slotEl = document.getElementById('slot-'+key);
+      statusEl.textContent = 'Lendo arquivo...'; statusEl.className='status';
+      try{
+        const wb = await readWorkbook(file);
+        const cfg = IMPORT_CONFIG.find(c=>c.key===key);
+        const result = cfg.parser(wb);
+        if(!result || !result.total && result.total!==0){ throw new Error('Não foi possível reconhecer as colunas desta planilha.'); }
+        AGG[AGG_KEY[key]] = result;
+        if(key==='descontos'){ /* também alimenta motivoTop usado na Visão */ }
+        dataImported = true;
+        statusEl.textContent = '✓ Importado — ' + (result.total ?? '') + ' registros processados';
+        statusEl.className='status ok'; slotEl.classList.add('done');
+        renderAll();
+      }catch(err){
+        console.error(err);
+        statusEl.textContent = 'Erro ao ler: ' + err.message; statusEl.className='status err';
+      }
+    });
+  });
+}
+
+/* ========================= INIT ========================= */
+buildImportGrid();
+renderAll();
+</script>
+</body>
+</html>
