@@ -207,7 +207,16 @@
           <span>Centro de Custo</span>
           <select id="filtroCC" class="filtroselect"><option value="">Todos</option></select>
         </div>
-        <div class="pill">Período<b>2026</b></div>
+        <div class="pill filterpill">
+          <span>Mês (2026)</span>
+          <select id="filtroMes" class="filtroselect">
+            <option value="">Todos</option>
+            <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+            <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+            <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+            <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+          </select>
+        </div>
         <div class="pill">Atualizado<b id="lastUpdate">—</b></div>
         <div class="badge">
           <div class="userpill" id="userPill" style="display:none;">
@@ -1324,7 +1333,7 @@ renderAll();
   // OBS: Descontos ainda não tem vínculo de empresa/obra/centro de custo no banco — não responde aos filtros globais.
   // Abastecimento e Multas seguem sem base própria (dados reais ainda não existem).
 
-  let filtro = { companyId: '', workId: '', costCenterId: '' };
+  let filtro = { companyId: '', workId: '', costCenterId: '', mes: '' };
   const MESES_NOMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
   function topN(obj, n){ return Object.fromEntries(Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,n)); }
@@ -1350,6 +1359,14 @@ renderAll();
     if (filtro.costCenterId) q = q.eq('vehicles.cost_center_id', filtro.costCenterId);
     return q;
   }
+  function monthRange(){
+    if (!filtro.mes) return null;
+    const year = 2026;
+    const mm = String(filtro.mes).padStart(2,'0');
+    const start = `${year}-${mm}-01`;
+    const end = Number(filtro.mes) === 12 ? `${year+1}-01-01` : `${year}-${String(Number(filtro.mes)+1).padStart(2,'0')}-01`;
+    return { start, end, exact: start };
+  }
 
   async function popularFiltros(){
     const { data: companies } = await sb.from('companies').select('id,name').order('name');
@@ -1367,6 +1384,7 @@ renderAll();
     selEmpresa.addEventListener('change', () => { filtro.companyId = selEmpresa.value; recarregarTudo(); });
     selObra.addEventListener('change', () => { filtro.workId = selObra.value; recarregarTudo(); });
     selCC.addEventListener('change', () => { filtro.costCenterId = selCC.value; recarregarTudo(); });
+    document.getElementById('filtroMes').addEventListener('change', (e) => { filtro.mes = e.target.value; recarregarTudo(); });
   }
 
   async function carregarDadosFrota(){
@@ -1435,6 +1453,8 @@ renderAll();
     let q = sb.from('corrective_maintenance')
       .select('cost,days_stopped,has_evidence,workshop,service_description,occurrence_date,vehicles!inner(company_id,work_id,cost_center_id,works(name))');
     q = scopeFilterEmbedded(q);
+    const rangeC = monthRange();
+    if (rangeC) q = q.gte('occurrence_date', rangeC.start).lt('occurrence_date', rangeC.end);
     const { data, error } = await q;
     if (error) { console.error('corretivas', error); return; }
     const total = data.length;
@@ -1465,6 +1485,8 @@ renderAll();
     let q = sb.from('accidents')
       .select('cost,occurrence_date,raw_data,vehicles!inner(company_id,work_id,cost_center_id,works(name))');
     q = scopeFilterEmbedded(q);
+    const rangeA = monthRange();
+    if (rangeA) q = q.gte('occurrence_date', rangeA.start).lt('occurrence_date', rangeA.end);
     const { data, error } = await q;
     if (error) { console.error('acidentes', error); return; }
     const total = data.length;
@@ -1493,6 +1515,8 @@ renderAll();
     let q = sb.from('mileage_monthly')
       .select('km_rodado,km_franquia,reference_month,vehicle_id,vehicles!inner(company_id,work_id,cost_center_id,works(name))');
     q = scopeFilterEmbedded(q);
+    const rangeK = monthRange();
+    if (rangeK) q = q.eq('reference_month', rangeK.exact);
     const { data, error } = await q;
     if (error) { console.error('km', error); return; }
     const total = new Set(data.map(r=>r.vehicle_id)).size;
