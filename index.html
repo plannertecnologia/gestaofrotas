@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestão Estratégica de Frotas | Utilities</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
   :root{
@@ -181,6 +182,7 @@
     <div class="navitem" data-page="abast"><div class="circ">B</div>Abast.</div>
     <div class="navitem" data-page="gov"><div class="circ">G</div>Gov.</div>
     <div class="navitem importbtn" data-page="import"><div class="circ">⇪</div>Importar</div>
+    <div class="navitem" data-page="basenova"><div class="circ">⇧</div>Base Única</div>
   </div>
 
   <div class="main">
@@ -407,7 +409,25 @@
         </div>
         <div class="import-grid" id="importGrid"></div>
       </div>
-
+<div class="page" id="page-basenova">
+  <div class="card" style="margin-bottom:16px;">
+    <h3>Importar Base Consolidada (Novo)</h3>
+    <div class="cs">Envie apenas o arquivo BASE_CONSOLIDADA.xlsx gerado pelo Power Query. O sistema valida, mostra um preview e só grava no banco depois da sua confirmação.</div>
+  </div>
+  <div class="card" style="margin-bottom:16px;">
+    <input type="file" id="baseConsolidadaInput" accept=".xlsx">
+    <div id="baseUploadStatus" class="status"></div>
+  </div>
+  <div class="card" id="previewCard" style="display:none;">
+    <h3>Preview da carga</h3>
+    <div id="previewList"></div>
+    <div style="margin-top:16px; display:flex; gap:10px;">
+      <button class="primary" id="btnConfirmarImport">Confirmar Importação</button>
+      <button id="btnCancelarImport">Cancelar</button>
+    </div>
+    <div id="importResultMsg" style="margin-top:12px;"></div>
+  </div>
+</div>
     </div>
   </div>
 </div>
