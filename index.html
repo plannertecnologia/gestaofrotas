@@ -1964,6 +1964,7 @@ renderAll();
       return 4; // não classificado, vai por último
     }
     data.forEach(r=>{
+      const cls = r.exposure_class ? String(r.exposure_class).toUpperCase() : 'NÃO CLASSIFICADO';
       eventos['Frenagem'] += Number(r.hard_braking_count)||0;
       eventos['Aceleração'] += Number(r.hard_acceleration_count)||0;
       eventos['Curva'] += Number(r.hard_cornering_count)||0;
