@@ -761,7 +761,7 @@ function renderPrev(){
   document.getElementById('p_statusTempoPct').textContent = p.statusTempoOkPct+'%';
   document.getElementById('p_statusMedidorPct').textContent = p.statusMedidorOkPct+'%';
   barList(document.getElementById('p_porObra'), p.porObra, {clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
-  barList(document.getElementById('p_porTipo'), p.porTipo);
+  barList(document.getElementById('p_porTipo'), p.porTipo, {clickable:true, onClick:(t)=>window.aplicarFiltroTipoPrev && window.aplicarFiltroTipoPrev(t)});
   const classesPrev = ['OK','ATENCAO','VENCIDO'];
   mkChart('p_chartStatus', {type:'doughnut', data:{labels:['Em dia','Atenção','Vencido'], datasets:[{data:[p.ok,p.atencao,p.vencido], backgroundColor:[COLORS.teal,COLORS.gold,COLORS.danger], borderColor:'#fff', borderWidth:3}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{boxWidth:9}}},
@@ -778,8 +778,8 @@ function renderCorr(){
   document.getElementById('c_diasParado').textContent = c.diasParadoMedia.toFixed(1)+' dias';
   document.getElementById('c_semEvidencia').textContent = fmtNum(c.semEvidencia);
   barList(document.getElementById('c_custoPorObra'), c.custoPorObra, {money:true, clickable:true, onClick: (obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
-  barList(document.getElementById('c_motivos'), c.topMotivo);
-  barList(document.getElementById('c_oficinas'), c.oficinas);
+  barList(document.getElementById('c_motivos'), c.topMotivo, {clickable:true, onClick:(m)=>window.aplicarFiltroMotivoCorr && window.aplicarFiltroMotivoCorr(m)});
+  barList(document.getElementById('c_oficinas'), c.oficinas, {clickable:true, onClick:(o)=>window.aplicarFiltroOficinaCorr && window.aplicarFiltroOficinaCorr(o)});
   const meses = Object.keys(c.porMes).sort((a,b)=>a-b);
   mkChart('c_chartMes', {type:'bar', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>c.porMes[m]), backgroundColor:COLORS.blue, borderRadius:5}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}},
@@ -802,7 +802,7 @@ function renderAcid(){
   document.getElementById('a_smsCiente').textContent = pct(a.smsCiente['SIM']||0, a.total)+'%';
   barList(document.getElementById('a_porObra'), a.porObra, {clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
   barList(document.getElementById('a_custoPorObra'), a.custoPorObra, {money:true, clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
-  barList(document.getElementById('a_tipoSinistro'), a.tipoSinistro);
+  barList(document.getElementById('a_tipoSinistro'), a.tipoSinistro, {clickable:true, onClick:(t)=>window.aplicarFiltroTipoSinistro && window.aplicarFiltroTipoSinistro(t)});
   const meses = Object.keys(a.porMes).sort((x,y)=>x-y);
   mkChart('a_chartMes', {type:'bar', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>a.porMes[m]), backgroundColor:COLORS.danger, borderRadius:5}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}},
@@ -828,8 +828,10 @@ function renderDesc(){
   const meses = Object.keys(d.porMes).sort((a,b)=>a-b);
   mkChart('d_chartMes', {type:'line', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>d.porMes[m]), borderColor:COLORS.teal, backgroundColor:COLORS.teal, tension:.3}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
-  mkChart('d_chartMotivo', {type:'doughnut', data:{labels:Object.keys(d.motivoTop), datasets:[{data:Object.values(d.motivoTop), backgroundColor:PAL, borderColor:'#fff', borderWidth:3}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}}}}});
+  const motivoDescLabels = Object.keys(d.motivoTop);
+  mkChart('d_chartMotivo', {type:'doughnut', data:{labels:motivoDescLabels, datasets:[{data:Object.values(d.motivoTop), backgroundColor:PAL, borderColor:'#fff', borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}}},
+      onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroMotivoDesc) window.aplicarFiltroMotivoDesc(motivoDescLabels[els[0].index]); }}});
   document.getElementById('d_tabelaColab').innerHTML = d.topColab.map(r=>{
     const tag = r.qtd>1 ? 'mid' : 'ok';
     return `<tr><td>${r.nome}</td><td>${r.qtd}</td><td>${fmtMoney(r.valor)}</td></tr>`;
@@ -1501,10 +1503,22 @@ renderAll();
       const nomesMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
       partes.push('Mês: ' + nomesMes[Number(filtro.mes)-1]);
     }
-    if (typeof filtroStatusPrev !== 'undefined' && filtroStatusPrev) partes.push('Status Preventiva: ' + filtroStatusPrev);
     if (typeof filtroTipoFrota !== 'undefined' && filtroTipoFrota) partes.push('Tipo de Frota: ' + filtroTipoFrota);
-    if (typeof filtroCienteAcid !== 'undefined' && filtroCienteAcid) partes.push('Frota Ciente: ' + filtroCienteAcid);
-    if (typeof filtroEvidenciaCorr !== 'undefined' && filtroEvidenciaCorr) partes.push('Evidência: ' + filtroEvidenciaCorr);
+    if (typeof filtroPrev !== 'undefined') {
+      if (filtroPrev.status) partes.push('Status Preventiva: ' + filtroPrev.status);
+      if (filtroPrev.tipo) partes.push('Tipo (Preventiva): ' + filtroPrev.tipo);
+    }
+    if (typeof filtroCorr !== 'undefined') {
+      if (filtroCorr.evidencia) partes.push('Evidência: ' + filtroCorr.evidencia);
+      if (filtroCorr.motivo) partes.push('Motivo (Corretiva): ' + filtroCorr.motivo);
+      if (filtroCorr.oficina) partes.push('Oficina: ' + filtroCorr.oficina);
+    }
+    if (typeof filtroAcid !== 'undefined') {
+      if (filtroAcid.ciente) partes.push('Frota Ciente: ' + filtroAcid.ciente);
+      if (filtroAcid.tipoSinistro) partes.push('Tipo de Sinistro: ' + filtroAcid.tipoSinistro);
+    }
+    if (typeof filtroExposicaoTel !== 'undefined' && filtroExposicaoTel) partes.push('Exposição (Telemetria): ' + filtroExposicaoTel);
+    if (typeof filtroMotivoDesc !== 'undefined' && filtroMotivoDesc) partes.push('Motivo (Desconto): ' + filtroMotivoDesc);
     const info = document.getElementById('filtroAtivoInfo');
     if (partes.length) {
       document.getElementById('filtroAtivoTexto').textContent = 'Filtrando por — ' + partes.join(' | ');
@@ -1531,7 +1545,11 @@ renderAll();
 
   document.getElementById('btnLimparFiltroChart')?.addEventListener('click', () => {
     filtro.workId = ''; filtro.mes = '';
-    filtroStatusPrev = ''; filtroTipoFrota = ''; filtroCienteAcid = ''; filtroEvidenciaCorr = '';
+    filtroTipoFrota = '';
+    filtroPrev.status = ''; filtroPrev.tipo = '';
+    filtroCorr.evidencia = ''; filtroCorr.motivo = ''; filtroCorr.oficina = '';
+    filtroAcid.ciente = ''; filtroAcid.tipoSinistro = '';
+    filtroExposicaoTel = ''; filtroMotivoDesc = '';
     document.getElementById('filtroObra').value = '';
     document.getElementById('filtroMes').value = '';
     atualizarFiltroAtivoInfo();
@@ -1630,7 +1648,7 @@ renderAll();
     };
   }
 
-  let filtroStatusPrev = '';
+  const filtroPrev = { status: '', tipo: '' };
   function classificarStatusPrev(status){
     const s = String(status||'').toUpperCase();
     if (s.includes('VENC')) return 'VENCIDO';
@@ -1638,7 +1656,13 @@ renderAll();
     return 'OK';
   }
   window.aplicarFiltroStatusPrev = function(classe){
-    filtroStatusPrev = filtroStatusPrev === classe ? '' : classe; // clicar de novo no mesmo limpa
+    filtroPrev.status = filtroPrev.status === classe ? '' : classe;
+    atualizarFiltroAtivoInfo();
+    carregarDadosPreventivas().then(renderPrev);
+  };
+  window.aplicarFiltroTipoPrev = function(tipo){
+    filtroPrev.tipo = filtroPrev.tipo === tipo ? '' : tipo;
+    atualizarFiltroAtivoInfo();
     carregarDadosPreventivas().then(renderPrev);
   };
 
@@ -1650,30 +1674,44 @@ renderAll();
     if (error) { console.error('preventivas', error); return; }
     const total = data.length;
     let ok=0, atencao=0, vencido=0;
+    const porTipoTotal = {};
     data.forEach(r=>{
       const c = classificarStatusPrev(r.status);
       if (c === 'VENCIDO') vencido++; else if (c === 'ATENCAO') atencao++; else ok++;
+      const tipo = r.vehicles?.fleet_type || '(sem tipo)';
+      porTipoTotal[tipo] = (porTipoTotal[tipo]||0)+1;
     });
-    const dataFiltrada = filtroStatusPrev ? data.filter(r => classificarStatusPrev(r.status) === filtroStatusPrev) : data;
-    const porObra={}, porTipo={};
+    const dataFiltrada = data.filter(r =>
+      (!filtroPrev.status || classificarStatusPrev(r.status) === filtroPrev.status) &&
+      (!filtroPrev.tipo || (r.vehicles?.fleet_type||'(sem tipo)') === filtroPrev.tipo)
+    );
+    const porObra={};
     dataFiltrada.forEach(r=>{
       const obra = r.vehicles?.works?.name || '(sem obra)';
       porObra[obra] = (porObra[obra]||0)+1;
-      const tipo = r.vehicles?.fleet_type || '(sem tipo)';
-      porTipo[tipo] = (porTipo[tipo]||0)+1;
     });
     AGG.preventivas = {
       total, ok, atencao, vencido,
-      porObra: topN(porObra,8), porTipo: topN(porTipo,8),
+      porObra: topN(porObra,8), porTipo: topN(porTipoTotal,8),
       statusTempoOkPct: total? Math.round(1000*ok/total)/10 : 0,
       statusMedidorOkPct: total? Math.round(1000*ok/total)/10 : 0,
-      filtroAtivo: filtroStatusPrev,
     };
   }
 
-  let filtroEvidenciaCorr = '';
+  const filtroCorr = { evidencia: '', motivo: '', oficina: '' };
   window.aplicarFiltroEvidenciaCorr = function(valor){
-    filtroEvidenciaCorr = filtroEvidenciaCorr === valor ? '' : valor;
+    filtroCorr.evidencia = filtroCorr.evidencia === valor ? '' : valor;
+    atualizarFiltroAtivoInfo();
+    carregarDadosCorretivas().then(renderCorr);
+  };
+  window.aplicarFiltroMotivoCorr = function(valor){
+    filtroCorr.motivo = filtroCorr.motivo === valor ? '' : valor;
+    atualizarFiltroAtivoInfo();
+    carregarDadosCorretivas().then(renderCorr);
+  };
+  window.aplicarFiltroOficinaCorr = function(valor){
+    filtroCorr.oficina = filtroCorr.oficina === valor ? '' : valor;
+    atualizarFiltroAtivoInfo();
     carregarDadosCorretivas().then(renderCorr);
   };
 
@@ -1686,17 +1724,25 @@ renderAll();
     const { data: dataAll, error } = await q;
     if (error) { console.error('corretivas', error); return; }
 
-    const evidenciaTotal = {};
-    dataAll.forEach(r=>{ const ev = r.has_evidence ? 'SIM' : 'NÃO'; evidenciaTotal[ev] = (evidenciaTotal[ev]||0)+1; });
+    const evidenciaTotal = {}, motivoTotal = {}, oficinaTotal = {};
+    dataAll.forEach(r=>{
+      const ev = r.has_evidence ? 'SIM' : 'NÃO'; evidenciaTotal[ev] = (evidenciaTotal[ev]||0)+1;
+      const mo = r.service_description || '(sem motivo)'; motivoTotal[mo] = (motivoTotal[mo]||0)+1;
+      const of = r.workshop || '(sem oficina)'; oficinaTotal[of] = (oficinaTotal[of]||0)+1;
+    });
 
-    const data = filtroEvidenciaCorr ? dataAll.filter(r => (r.has_evidence?'SIM':'NÃO') === filtroEvidenciaCorr) : dataAll;
+    const data = dataAll.filter(r =>
+      (!filtroCorr.evidencia || (r.has_evidence?'SIM':'NÃO') === filtroCorr.evidencia) &&
+      (!filtroCorr.motivo || (r.service_description||'(sem motivo)') === filtroCorr.motivo) &&
+      (!filtroCorr.oficina || (r.workshop||'(sem oficina)') === filtroCorr.oficina)
+    );
 
     const total = data.length;
     const custoTotal = data.reduce((s,r)=>s+(Number(r.cost)||0),0);
     const semCusto = data.filter(r=>!r.cost).length;
     const semEvidencia = data.filter(r=>r.has_evidence===false).length;
     const dias = data.map(r=>r.days_stopped).filter(v=>v!=null);
-    const porMes={}, custoPorMes={}, custoPorObra={}, topMotivo={}, oficinas={};
+    const porMes={}, custoPorMes={}, custoPorObra={};
     data.forEach(r=>{
       if (r.occurrence_date){
         const m = mesNumero(r.occurrence_date);
@@ -1705,21 +1751,23 @@ renderAll();
       }
       const obra = r.vehicles?.works?.name || '(sem obra)';
       custoPorObra[obra] = (custoPorObra[obra]||0) + (Number(r.cost)||0);
-      const motivo = r.service_description || '(sem motivo)';
-      topMotivo[motivo] = (topMotivo[motivo]||0)+1;
-      const of = r.workshop || '(sem oficina)';
-      oficinas[of] = (oficinas[of]||0)+1;
     });
     AGG.corretivas = {
       total, custoTotal, semCusto, diasParadoMedia: dias.length? dias.reduce((a,b)=>a+b,0)/dias.length : 0, semEvidencia,
       porMes, custoPorMes, custoPorObra: topN(custoPorObra,8), evidencia: evidenciaTotal,
-      topMotivo: topN(topMotivo,8), oficinas: topN(oficinas,8),
+      topMotivo: topN(motivoTotal,8), oficinas: topN(oficinaTotal,8),
     };
   }
 
-  let filtroCienteAcid = '';
+  const filtroAcid = { ciente: '', tipoSinistro: '' };
   window.aplicarFiltroCienteAcid = function(valor){
-    filtroCienteAcid = filtroCienteAcid === valor ? '' : valor;
+    filtroAcid.ciente = filtroAcid.ciente === valor ? '' : valor;
+    atualizarFiltroAtivoInfo();
+    carregarDadosAcidentes().then(renderAcid);
+  };
+  window.aplicarFiltroTipoSinistro = function(valor){
+    filtroAcid.tipoSinistro = filtroAcid.tipoSinistro === valor ? '' : valor;
+    atualizarFiltroAtivoInfo();
     carregarDadosAcidentes().then(renderAcid);
   };
 
@@ -1732,14 +1780,22 @@ renderAll();
     const { data: dataAll, error } = await q;
     if (error) { console.error('acidentes', error); return; }
 
-    const frotaCienteTotal = {};
-    dataAll.forEach(r=>{ const fc = (r.raw_data||{})['FROTAS UTILITIES CIENTE?'] || '(não informado)'; frotaCienteTotal[fc] = (frotaCienteTotal[fc]||0)+1; });
+    const frotaCienteTotal = {}, tipoSinistroTotal = {};
+    dataAll.forEach(r=>{
+      const raw = r.raw_data || {};
+      const fc = raw['FROTAS UTILITIES CIENTE?'] || '(não informado)'; frotaCienteTotal[fc] = (frotaCienteTotal[fc]||0)+1;
+      const ts = raw['TIPO DE SINISTRO'] || '(não informado)'; tipoSinistroTotal[ts] = (tipoSinistroTotal[ts]||0)+1;
+    });
 
-    const data = filtroCienteAcid ? dataAll.filter(r => ((r.raw_data||{})['FROTAS UTILITIES CIENTE?'] || '(não informado)') === filtroCienteAcid) : dataAll;
+    const data = dataAll.filter(r => {
+      const raw = r.raw_data || {};
+      return (!filtroAcid.ciente || (raw['FROTAS UTILITIES CIENTE?']||'(não informado)') === filtroAcid.ciente) &&
+             (!filtroAcid.tipoSinistro || (raw['TIPO DE SINISTRO']||'(não informado)') === filtroAcid.tipoSinistro);
+    });
 
     const total = data.length;
     const custoTotal = data.reduce((s,r)=>s+(Number(r.cost)||0),0);
-    const porMes={}, custoPorMes={}, porObra={}, custoPorObra={}, tipoSinistro={}, smsCiente={};
+    const porMes={}, custoPorMes={}, porObra={}, custoPorObra={}, smsCiente={};
     data.forEach(r=>{
       if (r.occurrence_date){
         const m = mesNumero(r.occurrence_date);
@@ -1750,14 +1806,12 @@ renderAll();
       porObra[obra] = (porObra[obra]||0)+1;
       custoPorObra[obra] = (custoPorObra[obra]||0) + (Number(r.cost)||0);
       const raw = r.raw_data || {};
-      const tipo = raw['TIPO DE SINISTRO'] || '(não informado)';
-      tipoSinistro[tipo] = (tipoSinistro[tipo]||0)+1;
       const sc = raw['ENGENHEIRO DE SMS CIENTE?'] || '(não informado)';
       smsCiente[sc] = (smsCiente[sc]||0)+1;
     });
     AGG.acidentes = {
       total, custoTotal, porMes, custoPorMes, porObra: topN(porObra,8), custoPorObra: topN(custoPorObra,8),
-      tipoSinistro: topN(tipoSinistro,8), frotaCiente: frotaCienteTotal, smsCiente,
+      tipoSinistro: topN(tipoSinistroTotal,8), frotaCiente: frotaCienteTotal, smsCiente,
     };
   }
 
@@ -1797,12 +1851,25 @@ renderAll();
     };
   }
 
+  let filtroMotivoDesc = '';
+  window.aplicarFiltroMotivoDesc = function(valor){
+    filtroMotivoDesc = filtroMotivoDesc === valor ? '' : valor;
+    atualizarFiltroAtivoInfo();
+    carregarDadosDescontos().then(renderDesc);
+  };
+
   async function carregarDadosDescontos(){
-    const { data, error } = await sb.from('discounts').select('employee_name,amount,occurrence_date,funnel_stage,raw_data');
+    const { data: dataAll, error } = await sb.from('discounts').select('employee_name,amount,occurrence_date,funnel_stage,raw_data');
     if (error) { console.error('descontos', error); return; }
+
+    const motivoTotal = {};
+    dataAll.forEach(r=>{ const m = (r.raw_data||{})['MOTIVO DESCONTO'] || '(não informado)'; motivoTotal[m] = (motivoTotal[m]||0)+1; });
+
+    const data = filtroMotivoDesc ? dataAll.filter(r => ((r.raw_data||{})['MOTIVO DESCONTO']||'(não informado)') === filtroMotivoDesc) : dataAll;
+
     const total = data.length;
     const valorTotal = data.reduce((s,r)=>s+(Number(r.amount)||0),0);
-    const porMes={}, porObra={}, enviadoRh={}, motivoTop={};
+    const porMes={}, porObra={}, enviadoRh={};
     const porColab={};
     data.forEach(r=>{
       const raw = r.raw_data || {};
@@ -1811,8 +1878,6 @@ renderAll();
       porObra[obra] = (porObra[obra]||0) + (Number(r.amount)||0);
       const rh = raw['ENVIADO AO RH'] || '(não informado)';
       enviadoRh[rh] = (enviadoRh[rh]||0)+1;
-      const motivo = raw['MOTIVO DESCONTO'] || '(não informado)';
-      motivoTop[motivo] = (motivoTop[motivo]||0)+1;
       const nome = r.employee_name || '(sem nome)';
       if (!porColab[nome]) porColab[nome] = {qtd:0, valor:0};
       porColab[nome].qtd++;
@@ -1821,16 +1886,34 @@ renderAll();
     const topColab = Object.entries(porColab).sort((a,b)=>b[1].valor-a[1].valor).slice(0,10).map(([nome,v])=>({nome,qtd:v.qtd,valor:v.valor}));
     AGG.descontos = {
       total, valorTotal, porMes, porObra: topN(porObra,8),
-      enviadoRh, motivoTop: topN(motivoTop,6), topColab,
+      enviadoRh, motivoTop: topN(motivoTotal,6), topColab,
     };
   }
 
+  let filtroExposicaoTel = '';
+  window.aplicarFiltroExposicaoTel = function(classe){
+    filtroExposicaoTel = filtroExposicaoTel === classe ? '' : classe;
+    atualizarFiltroAtivoInfo();
+    carregarDadosTelemetria().then(renderTelemetria);
+  };
+
   async function carregarDadosTelemetria(){
-    const { data, error } = await sb.from('driver_behavior')
+    const { data: dataAll, error } = await sb.from('driver_behavior')
       .select('driver_name,hard_braking_count,hard_acceleration_count,hard_cornering_count,speeding_count,score,exposure_class');
     if (error) { console.error('telemetria', error); return; }
+
+    const porExposicaoTotal = {};
+    dataAll.forEach(r=>{
+      const cls = r.exposure_class ? String(r.exposure_class).toUpperCase() : 'NÃO CLASSIFICADO';
+      porExposicaoTotal[cls] = (porExposicaoTotal[cls]||0)+1;
+    });
+
+    const data = filtroExposicaoTel
+      ? dataAll.filter(r => (r.exposure_class ? String(r.exposure_class).toUpperCase() : 'NÃO CLASSIFICADO') === filtroExposicaoTel)
+      : dataAll;
+
     const condutoresUnicos = new Set(data.map(r=>r.driver_name).filter(Boolean));
-    const porExposicao = {};
+    const porExposicao = porExposicaoTotal;
     const eventos = { 'Frenagem':0, 'Aceleração':0, 'Curva':0, 'Velocidade':0 };
     const porCondutor = {};
     function rankClasse(cls){
@@ -1842,8 +1925,6 @@ renderAll();
       return 4; // não classificado, vai por último
     }
     data.forEach(r=>{
-      const cls = r.exposure_class ? String(r.exposure_class).toUpperCase() : 'NÃO CLASSIFICADO';
-      porExposicao[cls] = (porExposicao[cls]||0)+1;
       eventos['Frenagem'] += Number(r.hard_braking_count)||0;
       eventos['Aceleração'] += Number(r.hard_acceleration_count)||0;
       eventos['Curva'] += Number(r.hard_cornering_count)||0;
@@ -1866,7 +1947,7 @@ renderAll();
     document.getElementById('t_aceleracao').textContent = fmtNum(t.eventos['Aceleração']);
     document.getElementById('t_curva').textContent = fmtNum(t.eventos['Curva']);
     document.getElementById('t_velocidade').textContent = fmtNum(t.eventos['Velocidade']);
-    barList(document.getElementById('t_porExposicao'), t.porExposicao);
+    barList(document.getElementById('t_porExposicao'), t.porExposicao, {clickable:true, onClick:(c)=>window.aplicarFiltroExposicaoTel && window.aplicarFiltroExposicaoTel(c)});
     document.getElementById('t_tabelaCondutores').innerHTML = t.listaCondutores.map(([nome,v])=>
       `<tr><td>${nome}</td><td>${v.classe}</td><td>${v.eventos}</td><td>${v.score}</td></tr>`).join('');
   }
