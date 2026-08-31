@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestão Estratégica de Frotas | Utilities</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -594,6 +595,16 @@ const PAL = [COLORS.blue, COLORS.teal, COLORS.gold, COLORS.blueDark, COLORS.teal
 Chart.defaults.font.family = "'Segoe UI', Inter, Arial, sans-serif";
 Chart.defaults.color = COLORS.muted;
 Chart.defaults.font.size = 11;
+if (typeof ChartDataLabels !== 'undefined') {
+  Chart.register(ChartDataLabels);
+  Chart.defaults.set('plugins.datalabels', {
+    color: '#00264C', font: { weight: '700', size: 10 },
+    formatter: (value) => {
+      if (value === 0 || value === null || value === undefined) return '';
+      return Number(value).toLocaleString('pt-BR');
+    },
+  });
+}
 const CHARTS = {}; // registry to destroy/recreate
 
 function fmtMoney(v){ if(v==null||isNaN(v)) return '—'; return 'R$ ' + Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -601,15 +612,27 @@ function fmtMoneyShort(v){ if(v==null||isNaN(v)) return '—'; if(Math.abs(v)>=1
 function fmtNum(v){ if(v==null||isNaN(v)) return '—'; return Number(v).toLocaleString('pt-BR'); }
 function pct(a,b){ if(!b) return 0; return Math.round(1000*a/b)/10; }
 function mkChart(id, config){ if(CHARTS[id]){ CHARTS[id].destroy(); } const ctx=document.getElementById(id); if(!ctx) return; CHARTS[id]=new Chart(ctx, config); }
+function aplicarDestaquePorIndice(cores, ativoIndex){
+  if (ativoIndex === -1 || ativoIndex === undefined) return cores;
+  return cores.map((c,i)=> i===ativoIndex ? c : '#D9E2E8');
+}
 function barList(el, dataObj, opts={}){
   const entries = Object.entries(dataObj).filter(([k,v])=>v!=null);
   const max = Math.max(...entries.map(e=>e[1]), 1);
   el.innerHTML = entries.map(([k,v],i)=>{
     const w = Math.max(4, Math.round(100*v/max));
+    const isActive = opts.activeKey && k === opts.activeKey;
+    const anyActive = !!opts.activeKey;
     const color = opts.color || PAL[i%PAL.length];
     const val = opts.money ? fmtMoneyShort(v) : fmtNum(v);
-    const attrs = opts.clickable ? `style="cursor:pointer;" data-key="${k}"` : '';
-    return `<div class="row" ${attrs}><div class="name" title="${k}">${k}</div><div class="track"><div class="fill" style="width:${w}%;background:${color}"></div></div><div class="num">${val}</div></div>`;
+    const rowStyle = [
+      opts.clickable ? 'cursor:pointer;' : '',
+      isActive ? 'background:#EAF4F8;border-radius:6px;padding:3px 6px;margin:0 -6px;' : '',
+      (anyActive && !isActive) ? 'opacity:.45;' : '',
+    ].join('');
+    const attrs = opts.clickable ? `style="${rowStyle}" data-key="${k}"` : (rowStyle ? `style="${rowStyle}"` : '');
+    const nameStyle = isActive ? 'font-weight:700;color:var(--navy);' : '';
+    return `<div class="row" ${attrs}><div class="name" title="${k}" style="${nameStyle}">${k}${isActive?' ✓':''}</div><div class="track"><div class="fill" style="width:${w}%;background:${color}"></div></div><div class="num">${val}</div></div>`;
   }).join('');
   if (opts.clickable) {
     el.querySelectorAll('.row[data-key]').forEach(row => {
@@ -705,7 +728,7 @@ function renderVisao(){
   document.getElementById('v_descValor').textContent = fmtMoneyShort(d.valorTotal);
   document.getElementById('v_descQtd').textContent = d.total+' registros';
 
-  barList(document.getElementById('v_frotaPorObra'), f.porObraQtd, {clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
+  barList(document.getElementById('v_frotaPorObra'), f.porObraQtd, {clickable:true, activeKey: window.__filtroObraAtivo, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
   barList(document.getElementById('v_locadoras'), f.locadoraTop);
 
   const semEvPct = pct(c.semEvidencia, c.total);
@@ -739,14 +762,15 @@ function renderFrota(){
   document.getElementById('f_qtd').textContent = fmtNum(f.total);
   document.getElementById('f_custoMensal').textContent = fmtMoneyShort(f.custoMensal);
   document.getElementById('f_custoMedio').textContent = fmtMoneyShort(f.custoMedio);
-  barList(document.getElementById('f_qtdPorObra'), f.porObraQtd, {clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
-  barList(document.getElementById('f_custoPorObra'), f.porObraCusto, {money:true, clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
+  barList(document.getElementById('f_qtdPorObra'), f.porObraQtd, {clickable:true, activeKey: window.__filtroObraAtivo, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
+  barList(document.getElementById('f_custoPorObra'), f.porObraCusto, {money:true, clickable:true, activeKey: window.__filtroObraAtivo, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
   barList(document.getElementById('f_locadoras'), f.locadoraTop);
   barList(document.getElementById('f_rastreador'), f.rastreador);
   mkChart('f_chartTempo', {type:'bar', data:{labels:Object.keys(f.tempoRestanteBucket), datasets:[{data:Object.values(f.tempoRestanteBucket), backgroundColor:COLORS.gold, borderRadius:5}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}}}});
   const tiposFrotaLabels = Object.keys(f.mixTipo);
-  mkChart('f_chartMix', {type:'doughnut', data:{labels:tiposFrotaLabels, datasets:[{data:Object.values(f.mixTipo), backgroundColor:PAL, borderColor:'#fff', borderWidth:3}]},
+  const idxTipoFrotaAtivo = tiposFrotaLabels.indexOf(f.filtroTipo);
+  mkChart('f_chartMix', {type:'doughnut', data:{labels:tiposFrotaLabels, datasets:[{data:Object.values(f.mixTipo), backgroundColor:aplicarDestaquePorIndice(tiposFrotaLabels.map((l,i)=>PAL[i%PAL.length]), idxTipoFrotaAtivo), borderColor:'#fff', borderWidth:3}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}}},
       onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroTipoFrota) window.aplicarFiltroTipoFrota(tiposFrotaLabels[els[0].index]); }}});
 }
@@ -760,10 +784,11 @@ function renderPrev(){
   document.getElementById('p_atencao').textContent = fmtNum(p.atencao); document.getElementById('p_atencaoPct').textContent = pct(p.atencao,p.total)+'% do total';
   document.getElementById('p_statusTempoPct').textContent = p.statusTempoOkPct+'%';
   document.getElementById('p_statusMedidorPct').textContent = p.statusMedidorOkPct+'%';
-  barList(document.getElementById('p_porObra'), p.porObra, {clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
-  barList(document.getElementById('p_porTipo'), p.porTipo, {clickable:true, onClick:(t)=>window.aplicarFiltroTipoPrev && window.aplicarFiltroTipoPrev(t)});
+  barList(document.getElementById('p_porObra'), p.porObra, {clickable:true, activeKey: window.__filtroObraAtivo, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
+  barList(document.getElementById('p_porTipo'), p.porTipo, {clickable:true, activeKey: p.filtroTipo, onClick:(t)=>window.aplicarFiltroTipoPrev && window.aplicarFiltroTipoPrev(t)});
   const classesPrev = ['OK','ATENCAO','VENCIDO'];
-  mkChart('p_chartStatus', {type:'doughnut', data:{labels:['Em dia','Atenção','Vencido'], datasets:[{data:[p.ok,p.atencao,p.vencido], backgroundColor:[COLORS.teal,COLORS.gold,COLORS.danger], borderColor:'#fff', borderWidth:3}]},
+  const idxStatusAtivo = classesPrev.indexOf(p.filtroStatus);
+  mkChart('p_chartStatus', {type:'doughnut', data:{labels:['Em dia','Atenção','Vencido'], datasets:[{data:[p.ok,p.atencao,p.vencido], backgroundColor:aplicarDestaquePorIndice([COLORS.teal,COLORS.gold,COLORS.danger], idxStatusAtivo), borderColor:'#fff', borderWidth:3}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{boxWidth:9}}},
       onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroStatusPrev) window.aplicarFiltroStatusPrev(classesPrev[els[0].index]); }}});
 }
@@ -777,9 +802,9 @@ function renderCorr(){
   document.getElementById('c_semCusto').textContent = fmtNum(c.semCusto);
   document.getElementById('c_diasParado').textContent = c.diasParadoMedia.toFixed(1)+' dias';
   document.getElementById('c_semEvidencia').textContent = fmtNum(c.semEvidencia);
-  barList(document.getElementById('c_custoPorObra'), c.custoPorObra, {money:true, clickable:true, onClick: (obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
-  barList(document.getElementById('c_motivos'), c.topMotivo, {clickable:true, onClick:(m)=>window.aplicarFiltroMotivoCorr && window.aplicarFiltroMotivoCorr(m)});
-  barList(document.getElementById('c_oficinas'), c.oficinas, {clickable:true, onClick:(o)=>window.aplicarFiltroOficinaCorr && window.aplicarFiltroOficinaCorr(o)});
+  barList(document.getElementById('c_custoPorObra'), c.custoPorObra, {money:true, clickable:true, activeKey: window.__filtroObraAtivo, onClick: (obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
+  barList(document.getElementById('c_motivos'), c.topMotivo, {clickable:true, activeKey: c.filtroMotivo, onClick:(m)=>window.aplicarFiltroMotivoCorr && window.aplicarFiltroMotivoCorr(m)});
+  barList(document.getElementById('c_oficinas'), c.oficinas, {clickable:true, activeKey: c.filtroOficina, onClick:(o)=>window.aplicarFiltroOficinaCorr && window.aplicarFiltroOficinaCorr(o)});
   const meses = Object.keys(c.porMes).sort((a,b)=>a-b);
   mkChart('c_chartMes', {type:'bar', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>c.porMes[m]), backgroundColor:COLORS.blue, borderRadius:5}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}},
@@ -788,7 +813,8 @@ function renderCorr(){
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}},
       onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroMes) window.aplicarFiltroMes(meses[els[0].index]); }}});
   const evidenciaLabels = Object.keys(c.evidencia);
-  mkChart('c_chartEv', {type:'doughnut', data:{labels:evidenciaLabels, datasets:[{data:Object.values(c.evidencia), backgroundColor:[COLORS.teal,COLORS.danger,COLORS.blue,COLORS.muted], borderColor:'#fff', borderWidth:3}]},
+  const idxEvidenciaAtivo = evidenciaLabels.indexOf(c.filtroEvidencia);
+  mkChart('c_chartEv', {type:'doughnut', data:{labels:evidenciaLabels, datasets:[{data:Object.values(c.evidencia), backgroundColor:aplicarDestaquePorIndice([COLORS.teal,COLORS.danger,COLORS.blue,COLORS.muted], idxEvidenciaAtivo), borderColor:'#fff', borderWidth:3}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}}},
       onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroEvidenciaCorr) window.aplicarFiltroEvidenciaCorr(evidenciaLabels[els[0].index]); }}});
 }
@@ -800,9 +826,9 @@ function renderAcid(){
   document.getElementById('a_custo').textContent = fmtMoneyShort(a.custoTotal);
   document.getElementById('a_frotaCiente').textContent = pct(a.frotaCiente['SIM']||0, a.total)+'%';
   document.getElementById('a_smsCiente').textContent = pct(a.smsCiente['SIM']||0, a.total)+'%';
-  barList(document.getElementById('a_porObra'), a.porObra, {clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
-  barList(document.getElementById('a_custoPorObra'), a.custoPorObra, {money:true, clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
-  barList(document.getElementById('a_tipoSinistro'), a.tipoSinistro, {clickable:true, onClick:(t)=>window.aplicarFiltroTipoSinistro && window.aplicarFiltroTipoSinistro(t)});
+  barList(document.getElementById('a_porObra'), a.porObra, {clickable:true, activeKey: window.__filtroObraAtivo, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
+  barList(document.getElementById('a_custoPorObra'), a.custoPorObra, {money:true, clickable:true, activeKey: window.__filtroObraAtivo, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
+  barList(document.getElementById('a_tipoSinistro'), a.tipoSinistro, {clickable:true, activeKey: a.filtroTipoSinistro, onClick:(t)=>window.aplicarFiltroTipoSinistro && window.aplicarFiltroTipoSinistro(t)});
   const meses = Object.keys(a.porMes).sort((x,y)=>x-y);
   mkChart('a_chartMes', {type:'bar', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>a.porMes[m]), backgroundColor:COLORS.danger, borderRadius:5}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}},
@@ -811,7 +837,8 @@ function renderAcid(){
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#EEF2F5'}},x:{grid:{display:false}}},
       onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroMes) window.aplicarFiltroMes(meses[els[0].index]); }}});
   const cienteLabels = Object.keys(a.frotaCiente);
-  mkChart('a_chartCiente', {type:'doughnut', data:{labels:cienteLabels, datasets:[{data:Object.values(a.frotaCiente), backgroundColor:[COLORS.teal,COLORS.danger,COLORS.muted], borderColor:'#fff', borderWidth:3}]},
+  const idxCienteAtivo = cienteLabels.indexOf(a.filtroCiente);
+  mkChart('a_chartCiente', {type:'doughnut', data:{labels:cienteLabels, datasets:[{data:Object.values(a.frotaCiente), backgroundColor:aplicarDestaquePorIndice(cienteLabels.map((l,i)=>[COLORS.teal,COLORS.danger,COLORS.muted][i%3]), idxCienteAtivo), borderColor:'#fff', borderWidth:3}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom'}},
       onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroCienteAcid) window.aplicarFiltroCienteAcid(cienteLabels[els[0].index]); }}});
 }
@@ -829,7 +856,8 @@ function renderDesc(){
   mkChart('d_chartMes', {type:'line', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>d.porMes[m]), borderColor:COLORS.teal, backgroundColor:COLORS.teal, tension:.3}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
   const motivoDescLabels = Object.keys(d.motivoTop);
-  mkChart('d_chartMotivo', {type:'doughnut', data:{labels:motivoDescLabels, datasets:[{data:Object.values(d.motivoTop), backgroundColor:PAL, borderColor:'#fff', borderWidth:3}]},
+  const idxMotivoDescAtivo = motivoDescLabels.indexOf(d.filtroMotivo);
+  mkChart('d_chartMotivo', {type:'doughnut', data:{labels:motivoDescLabels, datasets:[{data:Object.values(d.motivoTop), backgroundColor:aplicarDestaquePorIndice(motivoDescLabels.map((l,i)=>PAL[i%PAL.length]), idxMotivoDescAtivo), borderColor:'#fff', borderWidth:3}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}}},
       onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroMotivoDesc) window.aplicarFiltroMotivoDesc(motivoDescLabels[els[0].index]); }}});
   document.getElementById('d_tabelaColab').innerHTML = d.topColab.map(r=>{
@@ -848,7 +876,7 @@ function renderKm(){
   document.getElementById('k_comInformado').textContent = fmtNum(k.comInformadoUltimoMes);
   document.getElementById('k_acimaContrato').textContent = fmtNum(k.acimaContrato);
   document.getElementById('k_invalidas').textContent = fmtNum(k.leiturasInvalidas);
-  barList(document.getElementById('k_porObra'), k.ultimoMesPorObra, {clickable:true, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
+  barList(document.getElementById('k_porObra'), k.ultimoMesPorObra, {clickable:true, activeKey: window.__filtroObraAtivo, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
   mkChart('k_chartMes', {type:'line', data:{labels:mesesK, datasets:[{data:Object.values(k.porMes), borderColor:COLORS.blue, backgroundColor:COLORS.blue, tension:.3}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
   mkChart('k_chartVqtd', {type:'bar', data:{labels:mesesK, datasets:[{data:Object.values(k.veiculosInformadoPorMes), backgroundColor:COLORS.teal, borderRadius:5}]},
@@ -1538,6 +1566,7 @@ renderAll();
     const id = window.__worksByName[nomeObra];
     if (!id) return;
     filtro.workId = id;
+    window.__filtroObraAtivo = nomeObra;
     document.getElementById('filtroObra').value = id;
     atualizarFiltroAtivoInfo();
     recarregarTudo();
@@ -1550,6 +1579,7 @@ renderAll();
     filtroCorr.evidencia = ''; filtroCorr.motivo = ''; filtroCorr.oficina = '';
     filtroAcid.ciente = ''; filtroAcid.tipoSinistro = '';
     filtroExposicaoTel = ''; filtroMotivoDesc = '';
+    window.__filtroObraAtivo = '';
     document.getElementById('filtroObra').value = '';
     document.getElementById('filtroMes').value = '';
     atualizarFiltroAtivoInfo();
@@ -1601,7 +1631,11 @@ renderAll();
     });
 
     selEmpresa.addEventListener('change', () => { filtro.companyId = selEmpresa.value; atualizarFiltroAtivoInfo(); recarregarTudo(); });
-    selObra.addEventListener('change', () => { filtro.workId = selObra.value; atualizarFiltroAtivoInfo(); recarregarTudo(); });
+    selObra.addEventListener('change', () => {
+      filtro.workId = selObra.value;
+      window.__filtroObraAtivo = selObra.options[selObra.selectedIndex]?.text || '';
+      atualizarFiltroAtivoInfo(); recarregarTudo();
+    });
     document.getElementById('filtroMes').addEventListener('change', (e) => { filtro.mes = e.target.value; atualizarFiltroAtivoInfo(); recarregarTudo(); });
   }
 
@@ -1645,6 +1679,7 @@ renderAll();
       porObraQtd: topN(porObraQtd,10), porObraCusto: topN(porObraCusto,10),
       locadoraTop: topN(locadoraTop,8), tempoRestanteBucket: tempoBucket,
       mixTipo: topN(mixTipoTotal,10), rastreador: topN(rastreador,8),
+      filtroTipo: filtroTipoFrota,
     };
   }
 
@@ -1695,6 +1730,7 @@ renderAll();
       porObra: topN(porObra,8), porTipo: topN(porTipoTotal,8),
       statusTempoOkPct: total? Math.round(1000*ok/total)/10 : 0,
       statusMedidorOkPct: total? Math.round(1000*ok/total)/10 : 0,
+      filtroStatus: filtroPrev.status, filtroTipo: filtroPrev.tipo,
     };
   }
 
@@ -1756,6 +1792,7 @@ renderAll();
       total, custoTotal, semCusto, diasParadoMedia: dias.length? dias.reduce((a,b)=>a+b,0)/dias.length : 0, semEvidencia,
       porMes, custoPorMes, custoPorObra: topN(custoPorObra,8), evidencia: evidenciaTotal,
       topMotivo: topN(motivoTotal,8), oficinas: topN(oficinaTotal,8),
+      filtroEvidencia: filtroCorr.evidencia, filtroMotivo: filtroCorr.motivo, filtroOficina: filtroCorr.oficina,
     };
   }
 
@@ -1812,6 +1849,7 @@ renderAll();
     AGG.acidentes = {
       total, custoTotal, porMes, custoPorMes, porObra: topN(porObra,8), custoPorObra: topN(custoPorObra,8),
       tipoSinistro: topN(tipoSinistroTotal,8), frotaCiente: frotaCienteTotal, smsCiente,
+      filtroCiente: filtroAcid.ciente, filtroTipoSinistro: filtroAcid.tipoSinistro,
     };
   }
 
@@ -1887,6 +1925,7 @@ renderAll();
     AGG.descontos = {
       total, valorTotal, porMes, porObra: topN(porObra,8),
       enviadoRh, motivoTop: topN(motivoTotal,6), topColab,
+      filtroMotivo: filtroMotivoDesc,
     };
   }
 
@@ -1936,7 +1975,7 @@ renderAll();
       if (rankClasse(cls) > porCondutor[nome].rank) { porCondutor[nome].rank = rankClasse(cls); porCondutor[nome].classe = cls; }
     });
     const listaCondutores = Object.entries(porCondutor).sort((a,b)=> a[1].rank - b[1].rank || b[1].eventos - a[1].eventos);
-    AGG.telemetria = { total: condutoresUnicos.size, totalRegistros: data.length, porExposicao, eventos, listaCondutores };
+    AGG.telemetria = { total: condutoresUnicos.size, totalRegistros: data.length, porExposicao, eventos, listaCondutores, filtroExposicao: filtroExposicaoTel };
   }
 
   function renderTelemetria(){
@@ -1947,7 +1986,7 @@ renderAll();
     document.getElementById('t_aceleracao').textContent = fmtNum(t.eventos['Aceleração']);
     document.getElementById('t_curva').textContent = fmtNum(t.eventos['Curva']);
     document.getElementById('t_velocidade').textContent = fmtNum(t.eventos['Velocidade']);
-    barList(document.getElementById('t_porExposicao'), t.porExposicao, {clickable:true, onClick:(c)=>window.aplicarFiltroExposicaoTel && window.aplicarFiltroExposicaoTel(c)});
+    barList(document.getElementById('t_porExposicao'), t.porExposicao, {clickable:true, activeKey: t.filtroExposicao, onClick:(c)=>window.aplicarFiltroExposicaoTel && window.aplicarFiltroExposicaoTel(c)});
     document.getElementById('t_tabelaCondutores').innerHTML = t.listaCondutores.map(([nome,v])=>
       `<tr><td>${nome}</td><td>${v.classe}</td><td>${v.eventos}</td><td>${v.score}</td></tr>`).join('');
   }
