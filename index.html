@@ -236,17 +236,20 @@
       <!-- VISÃO -->
       <div class="page active" id="page-visao">
         <div class="kpi-grid">
-          <div class="kpi"><div class="label">Frota Total</div><div class="value" id="v_frotaTotal">–</div><div class="sub">veículos na base</div></div>
-          <div class="kpi navy"><div class="label">Custo Locação</div><div class="value" id="v_custoLocacao">–</div><div class="sub">mensal</div></div>
-          <div class="kpi warn"><div class="label">Preventivas Vencidas</div><div class="value" id="v_prevVencidas">–</div><div class="sub" id="v_prevVencidasPct">–</div></div>
-          <div class="kpi teal"><div class="label">Custo Corretivas</div><div class="value" id="v_custoCorretivas">–</div><div class="sub" id="v_corretivasSemCusto">–</div></div>
+          <div class="kpi"><div class="label">Frota</div><div class="value" id="v_frotaTotal">–</div><div class="sub">veículos na base</div></div>
+          <div class="kpi navy"><div class="label">Custo Total</div><div class="value" id="v_custoLocacao">–</div><div class="sub">locação mensal</div></div>
+          <div class="kpi teal"><div class="label">Disponibilidade</div><div class="value" id="v_disponibilidade">–</div><div class="sub">meta ≥ 95%</div></div>
+          <div class="kpi warn"><div class="label">Preventiva Vencida</div><div class="value" id="v_prevVencidas">–</div><div class="sub" id="v_prevVencidasPct">–</div></div>
           <div class="kpi danger"><div class="label">Acidentes</div><div class="value" id="v_acidentesQtd">–</div><div class="sub" id="v_acidentesCusto">–</div></div>
-          <div class="kpi"><div class="label">Multas</div><div class="value" id="v_multasQtd">–</div><div class="sub" id="v_multasValor">–</div></div>
-          <div class="kpi teal"><div class="label">Desconto Colab.</div><div class="value" id="v_descValor">–</div><div class="sub" id="v_descQtd">–</div></div>
+          <div class="kpi teal"><div class="label">Saving Realizado</div><div class="value" id="v_savingRealizado">–</div></div>
+          <div class="kpi navy"><div class="label">Custo Evitado</div><div class="value" id="v_custoEvitado">–</div></div>
         </div>
-        <div class="grid cols-3">
-          <div class="card"><h3>Frota por Obra</h3><div class="cs">Top contratos</div><div class="barlist" id="v_frotaPorObra"></div></div>
-          <div class="card"><h3>Farol Operacional</h3><div class="cs">Indicadores que pedem ação</div><div id="v_farol"></div></div>
+        <div class="grid cols-2">
+          <div class="card"><h3>Farol dos Contratos</h3><div class="cs">Contratos críticos: <b id="v_contratosCriticos">–</b> · critério: 2+ sinais ruins (preventiva vencida > 20%, teve acidente, custo corretivo/veículo alto)</div><div id="v_farolContratos"></div></div>
+          <div class="card"><h3>Evolução do Custo Corretivo Mensal</h3><div class="cs">Soma de custo de corretivas por mês</div><div class="chart-wrap" id="v_custoMensalWrap"><canvas id="v_chartCustoMensal"></canvas></div></div>
+        </div>
+        <div class="grid cols-2">
+          <div class="card"><h3>Top Criticidades</h3><div class="cs">Indicadores que pedem ação</div><div id="v_farol"></div></div>
           <div class="card"><h3>Leitura Executiva</h3><div class="cs">Resumo automático</div><div id="v_leitura"></div></div>
         </div>
         <div class="grid cols-2">
@@ -715,31 +718,45 @@ document.querySelectorAll('.navitem').forEach(n=>n.addEventListener('click',()=>
 /* ========================= RENDER: VISÃO ========================= */
 function renderVisao(){
   const f=AGG.frota, p=AGG.preventivas, c=AGG.corretivas, a=AGG.acidentes, d=AGG.descontos, m=AGG.multas;
+  const fin = AGG.financeiro || {savingRealizado:0, custoEvitado:0};
+  const farolC = AGG.farolContratos || {lista:[], criticos:0};
+
   document.getElementById('v_frotaTotal').textContent = fmtNum(f.total);
   document.getElementById('v_custoLocacao').textContent = fmtMoneyShort(f.custoMensal);
+
+  // Disponibilidade aproximada: 1 - (dias parados em corretiva / (frota x 30 dias)). Ajustável conforme a definição oficial do cliente.
+  const diasParadosTotais = (c.diasParadoMedia||0) * (c.total||0);
+  const disponibilidade = f.total ? Math.max(0, 100 - (diasParadosTotais/(f.total*30)*100)) : null;
+  document.getElementById('v_disponibilidade').textContent = disponibilidade!=null ? disponibilidade.toFixed(1)+'%' : '—';
+
   document.getElementById('v_prevVencidas').textContent = fmtNum(p.vencido);
   document.getElementById('v_prevVencidasPct').textContent = pct(p.vencido,p.total)+'% do controle';
-  document.getElementById('v_custoCorretivas').textContent = fmtMoneyShort(c.custoTotal);
-  document.getElementById('v_corretivasSemCusto').textContent = c.semCusto+' sem custo informado';
   document.getElementById('v_acidentesQtd').textContent = fmtNum(a.total);
   document.getElementById('v_acidentesCusto').textContent = fmtMoneyShort(a.custoTotal)+' em reparos';
-  document.getElementById('v_multasQtd').textContent = m ? fmtNum(m.total) : '—';
-  document.getElementById('v_multasValor').textContent = m ? fmtMoneyShort(m.valor) : 'importar planilha';
-  document.getElementById('v_descValor').textContent = fmtMoneyShort(d.valorTotal);
-  document.getElementById('v_descQtd').textContent = d.total+' registros';
+  document.getElementById('v_savingRealizado').textContent = fmtMoneyShort(fin.savingRealizado);
+  document.getElementById('v_custoEvitado').textContent = fmtMoneyShort(fin.custoEvitado);
+  document.getElementById('v_contratosCriticos').textContent = fmtNum(farolC.criticos);
 
-  barList(document.getElementById('v_frotaPorObra'), f.porObraQtd, {clickable:true, activeKey: window.__filtroObraAtivo, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
+  const corFarol = { VERDE: COLORS.teal, AMARELO: COLORS.gold, VERMELHO: COLORS.danger };
+  const bgFarol = { VERDE: '#DFF3EF', AMARELO: '#FDF3D6', VERMELHO: '#FBE4E1' };
+  document.getElementById('v_farolContratos').innerHTML = farolC.lista.length ? farolC.lista.map(o => `
+    <div class="alertcard" style="background:${bgFarol[o.farol]};border-left:4px solid ${corFarol[o.farol]}">
+      <span><b>${o.nome}</b><br><span style="color:var(--muted);font-size:10.5px">${o.prevVencidaPct}% preventiva vencida · ${o.acidentes} acidente(s) · ${fmtMoneyShort(o.custoPorVeiculo)}/veículo</span></span>
+    </div>
+  `).join('') : '<div style="color:#999;padding:10px;">Sem dados suficientes ainda.</div>';
+
   barList(document.getElementById('v_locadoras'), f.locadoraTop);
 
   const semEvPct = pct(c.semEvidencia, c.total);
   const descForaPct = pct(d.total - (d.enviadoRh['SIM']||0), d.total);
   const farolItems = [
+    {label:'Contratos críticos', val:farolC.criticos, pct: farolC.lista.length? Math.round(1000*farolC.criticos/farolC.lista.length)/10 : 0, color:COLORS.danger, bg:'#FBE4E1'},
     {label:'Preventiva vencida', val:p.vencido, pct:pct(p.vencido,p.total), color:COLORS.gold, bg:'#FDF3D6'},
     {label:'Corretiva sem evidência', val:c.semEvidencia, pct:semEvPct, color:COLORS.danger, bg:'#FBE4E1'},
     {label:'Desconto fora do SIM/RH', val:d.total-(d.enviadoRh['SIM']||0), pct:descForaPct, color:COLORS.gold, bg:'#FDF3D6'},
   ];
-  if(m){ farolItems.splice(2,0,{label:'Identificação de multa vencida', val:m.vencidas||0, pct:pct(m.vencidas||0,m.total), color:COLORS.danger, bg:'#FBE4E1'}); }
-  document.getElementById('v_farol').innerHTML = farolItems.map(it=>
+  if(m){ farolItems.push({label:'Identificação de multa vencida', val:m.vencidas||0, pct:pct(m.vencidas||0,m.total), color:COLORS.danger, bg:'#FBE4E1'}); }
+  document.getElementById('v_farol').innerHTML = farolItems.slice(0,5).map(it=>
     `<div class="alertcard" style="background:${it.bg};border-left:4px solid ${it.color}">
       <span>${it.label}<br><span style="color:var(--muted);font-size:10.5px">${fmtNum(it.val)} (${it.pct}%)</span></span>
     </div>`).join('');
@@ -749,6 +766,10 @@ function renderVisao(){
     <div class="textcard"><b>Custo corretivo</b><span>${fmtMoneyShort(c.custoTotal)} somados; ${c.semCusto} registros seguem sem valor.</span></div>
     <div class="textcard"><b>${m?'Multas exigem ação':'Multas pendente de importação'}</b><span>${m ? (fmtNum(m.vencidas||0)+' registros com identificação vencida.') : 'Envie a planilha de multas para habilitar este indicador.'}</span></div>
   `;
+
+  const mesesCorr = Object.keys(c.custoPorMes||{}).sort((x,y)=>x-y);
+  mkChart('v_chartCustoMensal', {type:'line', data:{labels:mesesCorr.map(mm=>MESES_ABREV[mm-1]), datasets:[{data:mesesCorr.map(mm=>c.custoPorMes[mm]), borderColor:COLORS.navy, backgroundColor:COLORS.navy, tension:.3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
 
   const mesesLabels = m ? Object.keys(m.porMes) : [];
   const mesesData = m ? Object.values(m.porMes) : [];
@@ -870,9 +891,9 @@ function renderDesc(){
 function renderKm(){
   const k=AGG.km;
   const mesesK = Object.keys(k.porMes);
-  const ultimo = mesesK[mesesK.length-1];
+  const ultimo = k.ultimoMesLabel && k.porMes[k.ultimoMesLabel] !== undefined ? k.ultimoMesLabel : mesesK[mesesK.length-1];
   document.getElementById('k_total').textContent = fmtNum(k.total);
-  document.getElementById('k_ultimoMes').textContent = fmtNum(k.porMes[ultimo])+' km';
+  document.getElementById('k_ultimoMes').textContent = fmtNum(k.porMes[ultimo]||0)+' km';
   document.getElementById('k_comInformado').textContent = fmtNum(k.comInformadoUltimoMes);
   document.getElementById('k_acimaContrato').textContent = fmtNum(k.acimaContrato);
   document.getElementById('k_invalidas').textContent = fmtNum(k.leiturasInvalidas);
@@ -1862,16 +1883,30 @@ renderAll();
     const { data, error } = await q;
     if (error) { console.error('km', error); return; }
     const total = new Set(data.map(r=>r.vehicle_id)).size;
-    const porMes={}, veiculosInformadoPorMes={};
+
+    // agrupa por reference_month (data real) em vez de só pelo rótulo, pra manter ordem cronológica certa
+    const porMesData = {}, veiculosInformadoPorMesData = {};
     let leiturasInvalidas=0;
     data.forEach(r=>{
-      const label = mesLabel(r.reference_month);
       const km = Number(r.km_rodado)||0;
       if (km < 0) { leiturasInvalidas++; return; }
-      porMes[label] = (porMes[label]||0) + km;
-      if (km > 0) veiculosInformadoPorMes[label] = (veiculosInformadoPorMes[label]||0) + 1;
+      const chave = r.reference_month || '(sem data)';
+      porMesData[chave] = (porMesData[chave]||0) + km;
+      if (km > 0) veiculosInformadoPorMesData[chave] = (veiculosInformadoPorMesData[chave]||0) + 1;
     });
-    const ultimaData = data.reduce((max,r)=> (!max || (r.reference_month && r.reference_month > max)) ? r.reference_month : max, null);
+    const mesesOrdenados = Object.keys(porMesData).sort(); // strings ISO ordenam corretamente
+    const porMes = {}, veiculosInformadoPorMes = {};
+    mesesOrdenados.forEach(m => {
+      const label = mesLabel(m);
+      porMes[label] = porMesData[m];
+      veiculosInformadoPorMes[label] = veiculosInformadoPorMesData[m] || 0;
+    });
+
+    // "último mês" = o mês mais recente que realmente tem KM rodado informado (não apenas o mais recente cronologicamente)
+    const mesesComDado = mesesOrdenados.filter(m => porMesData[m] > 0);
+    const ultimaData = mesesComDado.length ? mesesComDado[mesesComDado.length-1] : (mesesOrdenados[mesesOrdenados.length-1] || null);
+    const ultimoMesLabel = ultimaData ? mesLabel(ultimaData) : '—';
+
     const doUltimoMes = data.filter(r=>r.reference_month === ultimaData);
     const ultimoMesPorObra = {};
     let acimaContrato = 0, comInformadoUltimoMes = 0;
@@ -1883,7 +1918,7 @@ renderAll();
       if (r.km_franquia && km > Number(r.km_franquia)) acimaContrato++;
     });
     AGG.km = {
-      total, porMes, veiculosInformadoPorMes,
+      total, porMes, veiculosInformadoPorMes, ultimoMesLabel,
       ultimoMesPorObra: topN(ultimoMesPorObra,8),
       leiturasInvalidas, acimaContrato, comInformadoUltimoMes,
     };
@@ -1992,10 +2027,49 @@ renderAll();
       `<tr><td>${nome}</td><td>${v.classe}</td><td>${v.eventos}</td><td>${v.score}</td></tr>`).join('');
   }
 
+  async function carregarFarolContratos(){
+    // Critério combinado (ajustável): 2+ sinais ruins = VERMELHO, 1 = AMARELO, 0 = VERDE
+    // Sinais: % preventiva vencida > 20%, teve pelo menos 1 acidente, custo corretivo/veículo acima de R$ 500
+    let vq = sb.from('vehicles').select('vehicle_id,work_id,works(name)');
+    if (filtro.companyId) vq = vq.eq('company_id', filtro.companyId);
+    const { data: vehiclesAll } = await vq;
+
+    const { data: prevAll } = await sb.from('preventive_maintenance_vehicles').select('status,vehicles!inner(work_id,works(name))');
+    const { data: corrAll } = await sb.from('corrective_maintenance').select('cost,vehicles!inner(work_id,works(name))');
+    const { data: acidAll } = await sb.from('accidents').select('vehicles!inner(work_id,works(name))');
+
+    const porObra = {};
+    function getObra(nome){ if(!porObra[nome]) porObra[nome] = { veiculos:0, prevTotal:0, prevVencida:0, custoCorretivo:0, acidentes:0 }; return porObra[nome]; }
+
+    (vehiclesAll||[]).forEach(v=>{ getObra(v.works?.name||'(sem obra)').veiculos++; });
+    (prevAll||[]).forEach(p=>{
+      const nome = p.vehicles?.works?.name||'(sem obra)';
+      const o = getObra(nome);
+      o.prevTotal++;
+      if (classificarStatusPrev(p.status)==='VENCIDO') o.prevVencida++;
+    });
+    (corrAll||[]).forEach(c=>{ getObra(c.vehicles?.works?.name||'(sem obra)').custoCorretivo += Number(c.cost)||0; });
+    (acidAll||[]).forEach(a=>{ getObra(a.vehicles?.works?.name||'(sem obra)').acidentes++; });
+
+    const lista = Object.entries(porObra).filter(([nome])=>nome!=='(sem obra)').map(([nome,o])=>{
+      const prevVencidaPct = o.prevTotal ? Math.round((o.prevVencida/o.prevTotal*100)*10)/10 : 0;
+      const custoPorVeiculo = o.veiculos ? o.custoCorretivo/o.veiculos : 0;
+      let flags = 0;
+      if (prevVencidaPct > 20) flags++;
+      if (o.acidentes > 0) flags++;
+      if (custoPorVeiculo > 500) flags++;
+      const farol = flags >= 2 ? 'VERMELHO' : flags === 1 ? 'AMARELO' : 'VERDE';
+      return { nome, prevVencidaPct, custoPorVeiculo, acidentes:o.acidentes, veiculos:o.veiculos, farol };
+    }).sort((a,b)=> (b.farol==='VERMELHO')-(a.farol==='VERMELHO') || (b.farol==='AMARELO')-(a.farol==='AMARELO') || b.prevVencidaPct-a.prevVencidaPct);
+
+    AGG.farolContratos = { lista, criticos: lista.filter(x=>x.farol==='VERMELHO').length };
+  }
+
   async function recarregarTudo(){
     await Promise.all([
       carregarDadosFrota(), carregarDadosPreventivas(), carregarDadosCorretivas(),
       carregarDadosAcidentes(), carregarDadosKm(), carregarDadosDescontos(), carregarDadosTelemetria(),
+      carregarFarolContratos(),
     ]);
     renderVisao(); renderFrota(); renderPrev(); renderCorr(); renderAcid(); renderKm(); renderDesc(); renderGov(); renderTelemetria();
   }
@@ -2282,6 +2356,7 @@ renderAll();
     document.getElementById('fin_implementado').textContent = fmtMoney(totalImplementado);
     document.getElementById('fin_realizado').textContent = fmtMoney(totalRealizado);
     document.getElementById('fin_evitado').textContent = fmtMoney(totalEvitado);
+    AGG.financeiro = { totalIdent, totalAprovado, totalImplementado, savingRealizado: totalRealizado, custoEvitado: totalEvitado };
 
     document.getElementById('tabelaOportunidades').innerHTML = (opps||[]).map(o => {
       const s = savingsByOpp[o.id] || {};
