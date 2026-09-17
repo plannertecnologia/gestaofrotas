@@ -185,7 +185,6 @@
     <div class="navitem" data-page="tel"><div class="circ">T</div>Telem.</div>
     <div class="navitem" data-page="km"><div class="circ">K</div>KM</div>
     <div class="navitem" data-page="abast"><div class="circ">B</div>Abast.</div>
-    <div class="navitem" data-page="gov"><div class="circ">G</div>Gov.</div>
     <div class="navitem" data-page="plano"><div class="circ">P</div>Plano</div>
     <div class="navitem" data-page="financeiro"><div class="circ">$</div>Financ.</div>
     <div class="navitem" data-page="basenova"><div class="circ">⇧</div>Base Única</div>
@@ -1297,13 +1296,16 @@ renderAll();
       model: r['MODELO'],
       renter: r['LOCADORA'],
       fleet_type: mapFleetType(r['TIPO DE FROTA (LEVE, PESADO, FURGÃO OU UTILITÁRIO)']),
-      has_tracker: toBool(r['RASTREADOR']),
+      has_tracker: !!(r['RASTREADOR'] && String(r['RASTREADOR']).trim()),
       tracker_provider: r['RASTREADOR'] ? String(r['RASTREADOR']).trim() : null,
       monthly_cost: toNum(r['CUSTO DE LOCAÇÃO']),
       contract_start: excelDateToISO(r['DATA DE ENTREGA']),
       contract_end: excelDateToISO(r['FIM DO CONTRATO']),
       cost_center_text: r['CENTRO DE CUSTO'],
       obra_text: r['OBRA'],
+      driver_name: r['CONDUTOR (INFORMAR O NOME COMPLETO)'] || null,
+      driver_role: r['CARGO CONDUTOR'] || null,
+      segment: r['SEGMENTO (OPERACIONAL OU ADMNISTRATIVO'] || null,
       raw_data: r,
     })).filter(v => v.plate);
   }
@@ -1331,8 +1333,8 @@ renderAll();
       occurrence_date: excelDateToISO(r['DATA QUE O VEICULO PAROU']),
       workshop: r['NOME DA OFICINA'],
       service_description: r['MOTIVO MANUTENÇÃO (PEÇA)'],
-      cost: toNum(r['CUSTO DE REPARO']) ?? toNum(r['CUSTO ORIGINAL ']),
-      days_stopped: toNum(r['DIAS PARADO']),
+      cost: toNum(r['VALOR MANUTENÇÃO']),
+      days_stopped: toNum(r['DIAS PARADO (CALCULADO)']),
       has_evidence: toBool(r['TEM EVIDENCIA DA MANUTENÇÃO']),
       raw_data: r,
     })).filter(v => v.raw_plate);
@@ -1391,7 +1393,62 @@ renderAll();
     return 'POTENCIAL_OCIOSIDADE';
   }
 
-  // COMPORTAMENTAL e MULTAS não têm PLACA — vinculam por condutor, não por veículo.
+  // ---------- MULTAS (real), ABASTECIMENTO e TELEMETRIA_VEICULO (novas fontes reais) ----------
+  function parseMultasReal(rows){
+    return rows.map(r => ({
+      raw_plate: r['Placa'],
+      driver_name: r['Condutor'] || null,
+      infraction_code: r['Código do Enquadramento'] != null ? String(r['Código do Enquadramento']) : null,
+      infraction_description: r['Descrição do Enquadramento'],
+      infraction_date: excelDateToISO(r['Data da Infração']),
+      points: toNum(r['Pontos']),
+      amount: toNum(r['Valor da Infração']),
+      status: r['Controle da Multa'] || null,
+      raw_data: r,
+    })).filter(v => v.raw_plate);
+  }
+
+  function parseAbastecimento(rows){
+    return rows.map(r => {
+      const litros = toNum(r['LITROS']);
+      const preco = toNum(r['VL/LITRO']);
+      return {
+        raw_plate: r['PLACA'],
+        transaction_date: excelDateToISO(r['DATA']),
+        service_type: r['SERVICO'] || null,
+        fuel_type: r['TIPO COMBUSTIVEL'] || null,
+        liters: litros,
+        price_per_liter: preco,
+        total_value: (litros != null && preco != null) ? +(litros * preco).toFixed(2) : null,
+        driver_name: r['NOME MOTORISTA'] || null,
+        odometer: toNum(r['HODOMETRO OU HORIMETRO']),
+        payment_method: r['FORMA DE PAGAMENTO'] || null,
+        raw_data: r,
+      };
+    }).filter(v => v.raw_plate);
+  }
+
+  function parseTelemetriaVeiculo(rows){
+    return rows.map(r => ({
+      raw_plate: r['PLACA'],
+      reference_month: mesParaData(r['MES']),
+      km_rodado: toNum(r['KM_RODADO']),
+      fuel_liters: toNum(r['COMBUSTIVEL_LITROS']),
+      fuel_cost: toNum(r['CUSTO_COMBUSTIVEL']),
+      pct_parado: toNum(r['PARADO_PCT']),
+      pct_parado_ligado: toNum(r['PARADO_LIGADO_PCT']),
+      pct_em_movimento: toNum(r['EM_MOVIMENTO_PCT']),
+      velocidade_media: toNum(r['VELOCIDADE_MEDIA']),
+      velocidade_maxima: toNum(r['VELOCIDADE_MAXIMA']),
+      hard_acceleration_count: Math.round(toNum(r['ACELERACAO_GRAVE']) || toNum(r['EVENTOS_ACELERACAO_BRUSCA']) || 0),
+      hard_braking_count: Math.round(toNum(r['FRENAGEM_GRAVE']) || toNum(r['EVENTOS_FRENAGEM_BRUSCA']) || 0),
+      hard_cornering_count: Math.round(toNum(r['CURVA_GRAVE']) || toNum(r['EVENTOS_CURVA_BRUSCA']) || 0),
+      speeding_count: Math.round(toNum(r['EXCESSO_VELOCIDADE']) || toNum(r['EVENTOS_VELOCIDADE_VIA']) || 0),
+      raw_data: r,
+    })).filter(v => v.raw_plate && v.reference_month);
+  }
+
+  // COMPORTAMENTAL e MULTAS (formato antigo) não têm PLACA — mantidos só por compatibilidade, não usados na base nova.
   function parseComportamentalSheet(rows){
     return (rows||[]).map(r => ({
       raw_plate: null,
@@ -1430,7 +1487,7 @@ renderAll();
       occurrence_description: r['DESCRIÇÃO DO OCORRIDO'],
       occurrence_date: null, // só existe "MÊS COMPETÊNCIA" como texto, sem dia — fica em raw_data
       amount: toNum(r['VALOR DO DESCONTO']),
-      funnel_stage: toBool(r['ENVIADO AO RH']) ? 'ENVIADO_RH' : 'IDENTIFICADO',
+      funnel_stage: String(r['ENVIADO AO RH']||'').toUpperCase()==='SIM' ? 'ENVIADO_RH' : 'IDENTIFICADO',
       raw_data: r,
     }));
   }
@@ -1464,16 +1521,10 @@ renderAll();
       registrar('ACIDENTES', sheetRows(wb,'ACIDENTES'), parseAcidentes);
       registrar('CORRETIVAS', sheetRows(wb,'CORRETIVAS'), parseCorretivas);
       registrar('PREVENTIVAS_VEICULOS', sheetRows(wb,'PREVENTIVAS_VEICULOS'), parsePreventivasVeiculos);
-      registrar('QUILOMETRAGEM', sheetRows(wb,'QUILOMETRAGEM'), parseQuilometragem);
-
-      const comportamental = [
-        ...parseComportamentalSheet(sheetRows(wb,'COMPORTAMENTAL')),
-        ...parseMultasSheet(sheetRows(wb,'MULTAS')),
-      ];
-      modules.COMPORTAMENTAL = comportamental;
-      preview.push({ modulo: 'COMPORTAMENTAL (+ MULTAS)', status: 'OK', qtd: comportamental.length });
-
       registrar('DESCONTOS', sheetRows(wb,'DESCONTOS'), parseDescontos);
+      registrar('MULTAS', sheetRows(wb,'MULTAS'), parseMultasReal);
+      registrar('ABASTECIMENTO', sheetRows(wb,'ABASTECIMENTO'), parseAbastecimento);
+      registrar('TELEMETRIA_VEICULO', sheetRows(wb,'TELEMETRIA_VEICULO'), parseTelemetriaVeiculo);
 
       ultimoArquivo = { fileName: file.name, fileHash: hash, fileSizeBytes: file.size };
       ultimosModulos = modules;
