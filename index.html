@@ -183,6 +183,8 @@
     <div class="navitem" data-page="acid"><div class="circ">A</div>Acid.</div>
     <div class="navitem" data-page="desc"><div class="circ">D</div>Desc.</div>
     <div class="navitem" data-page="tel"><div class="circ">T</div>Telem.</div>
+    <div class="navitem" data-page="multas"><div class="circ">M</div>Multas</div>
+    <div class="navitem" data-page="telv"><div class="circ">V</div>Telem.Veíc.</div>
     <div class="navitem" data-page="km"><div class="circ">K</div>KM</div>
     <div class="navitem" data-page="abast"><div class="circ">B</div>Abast.</div>
     <div class="navitem" data-page="plano"><div class="circ">P</div>Plano</div>
@@ -463,6 +465,23 @@
         </div>
         <div class="import-grid" id="importGrid"></div>
       </div>
+<div class="page" id="page-telv">
+  <div class="kpi-grid">
+    <div class="kpi"><div class="label">KM Rodado (mês)</div><div class="value" id="tv_km">–</div></div>
+    <div class="kpi navy"><div class="label">Combustível Gasto</div><div class="value" id="tv_combustivel">–</div></div>
+    <div class="kpi teal"><div class="label">Velocidade Média</div><div class="value" id="tv_velMedia">–</div></div>
+    <div class="kpi danger"><div class="label">Excesso de Velocidade</div><div class="value" id="tv_excesso">–</div></div>
+    <div class="kpi warn"><div class="label">Frenagem Brusca</div><div class="value" id="tv_frenagem">–</div></div>
+    <div class="kpi"><div class="label">Aceleração/Curva Brusca</div><div class="value" id="tv_acelCurva">–</div></div>
+  </div>
+  <div class="card">
+    <h3>Veículos — Mais Eventos de Risco</h3>
+    <div class="cs">Ordenado por soma de frenagem + aceleração + curva + excesso de velocidade</div>
+    <div style="max-height:400px; overflow-y:auto;">
+      <table class="mini"><thead><tr><th>Placa</th><th>Obra</th><th>KM</th><th>Frenagem</th><th>Aceleração</th><th>Curva</th><th>Excesso Vel.</th></tr></thead><tbody id="tv_tabela"></tbody></table>
+    </div>
+  </div>
+</div>
 <div class="page" id="page-plano">
   <div class="kpi-grid">
     <div class="kpi"><div class="label">Abertas</div><div class="value" id="pa_abertas">–</div></div>
@@ -2116,13 +2135,94 @@ renderAll();
     AGG.farolContratos = { lista, criticos: lista.filter(x=>x.farol==='VERMELHO').length };
   }
 
+  async function carregarDadosMultas(){
+    let q = sb.from('fines').select('amount,infraction_date,status,vehicles!inner(company_id,work_id,cost_center_id,works(name))');
+    q = scopeFilterEmbedded(q);
+    const rangeM = monthRange();
+    if (rangeM) q = q.gte('infraction_date', rangeM.start).lt('infraction_date', rangeM.end);
+    const { data, error } = await q;
+    if (error) { console.error('multas', error); return; }
+    const total = data.length;
+    const valor = data.reduce((s,r)=>s+(Number(r.amount)||0),0);
+    const porMes={}, porCategoria={};
+    data.forEach(r=>{
+      if (r.infraction_date){ const m = mesNumero(r.infraction_date); porMes[m]=(porMes[m]||0)+1; }
+      const obra = r.vehicles?.works?.name || '(sem obra)';
+      porCategoria[obra] = (porCategoria[obra]||0)+1;
+    });
+    AGG.multas = { total, valor, porMes, porCategoria: topN(porCategoria,8), vencidas: 0 };
+  }
+
+  async function carregarDadosAbastecimento(){
+    let q = sb.from('fuel_records').select('total_value,liters,transaction_date,vehicles!inner(company_id,work_id,cost_center_id,works(name))');
+    q = scopeFilterEmbedded(q);
+    const rangeAb = monthRange();
+    if (rangeAb) q = q.gte('transaction_date', rangeAb.start).lt('transaction_date', rangeAb.end);
+    const { data, error } = await q;
+    if (error) { console.error('abastecimento', error); return; }
+    const qtd = data.length;
+    const valor = data.reduce((s,r)=>s+(Number(r.total_value)||0),0);
+    const litros = data.reduce((s,r)=>s+(Number(r.liters)||0),0);
+    const porMes={}, porObra={};
+    data.forEach(r=>{
+      if (r.transaction_date){ const m = mesNumero(r.transaction_date); porMes[m]=(porMes[m]||0)+(Number(r.total_value)||0); }
+      const obra = r.vehicles?.works?.name || '(sem obra)';
+      porObra[obra] = (porObra[obra]||0) + (Number(r.total_value)||0);
+    });
+    AGG.abastecimento = { qtd, valor, litros, porMes, porObra: topN(porObra,8) };
+  }
+
+  async function carregarDadosTelemetriaVeiculo(){
+    let q = sb.from('vehicle_telemetry_monthly')
+      .select('raw_plate,km_rodado,fuel_cost,velocidade_media,hard_braking_count,hard_acceleration_count,hard_cornering_count,speeding_count,vehicles!inner(company_id,work_id,cost_center_id,works(name))');
+    q = scopeFilterEmbedded(q);
+    const { data, error } = await q;
+    if (error) { console.error('telemetria_veiculo', error); return; }
+    const kmTotal = data.reduce((s,r)=>s+(Number(r.km_rodado)||0),0);
+    const combustivelTotal = data.reduce((s,r)=>s+(Number(r.fuel_cost)||0),0);
+    const velocidades = data.map(r=>Number(r.velocidade_media)).filter(v=>v>0);
+    const velMedia = velocidades.length ? velocidades.reduce((a,b)=>a+b,0)/velocidades.length : 0;
+    const excessoTotal = data.reduce((s,r)=>s+(Number(r.speeding_count)||0),0);
+    const frenagemTotal = data.reduce((s,r)=>s+(Number(r.hard_braking_count)||0),0);
+    const acelCurvaTotal = data.reduce((s,r)=>s+(Number(r.hard_acceleration_count)||0)+(Number(r.hard_cornering_count)||0),0);
+
+    const porVeiculo = {};
+    data.forEach(r=>{
+      const placa = r.raw_plate || '(sem placa)';
+      if (!porVeiculo[placa]) porVeiculo[placa] = { obra: r.vehicles?.works?.name||'—', km:0, frenagem:0, aceleracao:0, curva:0, excesso:0 };
+      porVeiculo[placa].km += Number(r.km_rodado)||0;
+      porVeiculo[placa].frenagem += Number(r.hard_braking_count)||0;
+      porVeiculo[placa].aceleracao += Number(r.hard_acceleration_count)||0;
+      porVeiculo[placa].curva += Number(r.hard_cornering_count)||0;
+      porVeiculo[placa].excesso += Number(r.speeding_count)||0;
+    });
+    const listaVeiculos = Object.entries(porVeiculo)
+      .sort((a,b)=> (b[1].frenagem+b[1].aceleracao+b[1].curva+b[1].excesso) - (a[1].frenagem+a[1].aceleracao+a[1].curva+a[1].excesso));
+
+    AGG.telemetriaVeiculo = { kmTotal, combustivelTotal, velMedia, excessoTotal, frenagemTotal, acelCurvaTotal, listaVeiculos };
+  }
+
+  function renderTelemetriaVeiculo(){
+    const t = AGG.telemetriaVeiculo; if (!t) return;
+    document.getElementById('tv_km').textContent = fmtNum(t.kmTotal) + ' km';
+    document.getElementById('tv_combustivel').textContent = fmtMoney(t.combustivelTotal);
+    document.getElementById('tv_velMedia').textContent = t.velMedia.toFixed(0) + ' km/h';
+    document.getElementById('tv_excesso').textContent = fmtNum(t.excessoTotal);
+    document.getElementById('tv_frenagem').textContent = fmtNum(t.frenagemTotal);
+    document.getElementById('tv_acelCurva').textContent = fmtNum(t.acelCurvaTotal);
+    document.getElementById('tv_tabela').innerHTML = t.listaVeiculos.map(([placa,v]) => `
+      <tr><td>${placa}</td><td>${v.obra}</td><td>${fmtNum(v.km)}</td><td>${v.frenagem}</td><td>${v.aceleracao}</td><td>${v.curva}</td><td>${v.excesso}</td></tr>
+    `).join('');
+  }
+
   async function recarregarTudo(){
     await Promise.all([
       carregarDadosFrota(), carregarDadosPreventivas(), carregarDadosCorretivas(),
       carregarDadosAcidentes(), carregarDadosKm(), carregarDadosDescontos(), carregarDadosTelemetria(),
-      carregarFarolContratos(),
+      carregarFarolContratos(), carregarDadosMultas(), carregarDadosAbastecimento(), carregarDadosTelemetriaVeiculo(),
     ]);
-    renderVisao(); renderFrota(); renderPrev(); renderCorr(); renderAcid(); renderKm(); renderDesc(); renderGov(); renderTelemetria();
+    renderVisao(); renderFrota(); renderPrev(); renderCorr(); renderAcid(); renderKm(); renderDesc(); renderGov();
+    renderTelemetria(); renderMultas(); renderAbast(); renderTelemetriaVeiculo();
   }
 
   const ADMIN_USERS_FUNCTION_URL = 'https://ozeskcsrlqmdrenxzquz.supabase.co/functions/v1/admin-users';
@@ -2297,7 +2397,7 @@ renderAll();
   const PAGE_PERMISSION = {
     visao: 'page.visao_executiva', frota: 'page.frota_contratos', prev: 'page.preventiva',
     corr: 'page.corretiva', acid: 'page.acidentes', desc: 'page.descontos', km: 'page.quilometragem',
-    tel: 'page.telemetria', plano: 'page.plano_acao', financeiro: 'page.financeiro',
+    tel: 'page.telemetria', telv: 'page.telemetria', multas: 'page.multas', plano: 'page.plano_acao', financeiro: 'page.financeiro',
     basenova: 'action.upload_base', admin: 'page.administracao',
     // abast e gov não têm permissão própria cadastrada — ficam sempre visíveis por enquanto
   };
