@@ -186,6 +186,7 @@
     <div class="navitem" data-page="multas"><div class="circ">M</div>Multas</div>
     <div class="navitem" data-page="telv"><div class="circ">V</div>Telem.Veíc.</div>
     <div class="navitem" data-page="km"><div class="circ">K</div>KM</div>
+    <div class="navitem" data-page="indic"><div class="circ">I</div>Indic.</div>
     <div class="navitem" data-page="abast"><div class="circ">B</div>Abast.</div>
     <div class="navitem" data-page="plano"><div class="circ">P</div>Plano</div>
     <div class="navitem" data-page="financeiro"><div class="circ">$</div>Financ.</div>
@@ -482,6 +483,41 @@
     </div>
   </div>
 </div>
+<div class="page" id="page-indic">
+  <div class="kpi-grid">
+    <div class="kpi navy"><div class="label">R$ Multas / KM</div><div class="value" id="i_multaKm">–</div><div class="sub" id="i_multaKmSub">mesma placa e mês</div></div>
+    <div class="kpi warn"><div class="label">Avarias / KM</div><div class="value" id="i_avariaKm">–</div><div class="sub">aguardando base de avarias</div></div>
+    <div class="kpi teal"><div class="label">Custo Frota / KM</div><div class="value" id="i_custoFrotaKm">–</div><div class="sub" id="i_custoFrotaKmSub">locação da frota monitorada</div></div>
+    <div class="kpi warn"><div class="label">KM Fora do Expediente</div><div class="value" id="i_kmForaExp">–</div><div class="sub">aguardando KM por viagem/horário</div></div>
+    <div class="kpi warn"><div class="label">Idade Média da Frota</div><div class="value" id="i_idadeMedia">–</div><div class="sub">aguardando ano fabricação/modelo</div></div>
+    <div class="kpi danger"><div class="label">Acidentes / 100 mil KM</div><div class="value" id="i_acidentesKm">–</div><div class="sub" id="i_acidentesKmSub">mesma placa e mês</div></div>
+  </div>
+
+  <div class="grid cols-2">
+    <div class="card">
+      <h3>Cobertura dos Indicadores por KM</h3>
+      <div class="cs">Os cruzamentos usam apenas pares placa/mês que possuem KM informado.</div>
+      <div id="i_cobertura"></div>
+    </div>
+    <div class="card">
+      <h3>Indicadores que dependem de nova fonte</h3>
+      <div class="textcard"><b>Avarias</b><span>Necessário: placa, data, quantidade/ocorrência e custo da avaria.</span></div>
+      <div class="textcard"><b>KM fora do expediente</b><span>Necessário: viagens/posições com data/hora e distância percorrida — eventos isolados não bastam.</span></div>
+      <div class="textcard"><b>Idade da frota</b><span>Necessário: ano de fabricação ou ano-modelo por placa.</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>KM/L por Modelo — Real x Previsto</h3>
+    <div class="cs">Mediana do KM/L real positivo versus mediana do desempenho esperado. A mediana evita que outliers extremos da base distorçam a leitura.</div>
+    <div style="max-height:460px; overflow-y:auto;">
+      <table class="mini">
+        <thead><tr><th>Modelo</th><th>KM/L Real</th><th>KM/L Previsto</th><th>Desvio</th><th>Registros</th></tr></thead>
+        <tbody id="i_tabelaModelos"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 <div class="page" id="page-plano">
   <div class="kpi-grid">
     <div class="kpi"><div class="label">Abertas</div><div class="value" id="pa_abertas">–</div></div>
@@ -727,8 +763,9 @@ function goToPage(page){
   document.querySelectorAll('.navitem').forEach(n=>n.classList.toggle('active', n.dataset.page===page));
   document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active', p.id==='page-'+page));
   const titles = {visao:'Visão Executiva', frota:'Gestão de Frota', prev:'Manutenção Preventiva', corr:'Manutenção Corretiva',
-    acid:'Acidentes & Sinistros', multas:'Multas', desc:'Desconto Colaborador', km:'Quilometragem da Frota',
-    abast:'Abastecimento', gov:'Governança, Qualidade & Padronizações', import:'Importar Planilhas'};
+    acid:'Acidentes & Sinistros', multas:'Multas', desc:'Desconto Colaborador', tel:'Telemetria de Condutores', telv:'Telemetria por Veículo',
+    km:'Quilometragem da Frota', abast:'Abastecimento', indic:'Indicadores do Cliente', plano:'Plano de Ação', financeiro:'Gestão Financeira',
+    basenova:'Base Única', admin:'Administração', gov:'Governança, Qualidade & Padronizações', import:'Importar Planilhas'};
   document.getElementById('pageTitle').textContent = titles[page] || page;
 }
 document.querySelectorAll('.navitem').forEach(n=>n.addEventListener('click',()=>goToPage(n.dataset.page)));
@@ -1540,6 +1577,7 @@ renderAll();
       registrar('ACIDENTES', sheetRows(wb,'ACIDENTES'), parseAcidentes);
       registrar('CORRETIVAS', sheetRows(wb,'CORRETIVAS'), parseCorretivas);
       registrar('PREVENTIVAS_VEICULOS', sheetRows(wb,'PREVENTIVAS_VEICULOS'), parsePreventivasVeiculos);
+      registrar('QUILOMETRAGEM', sheetRows(wb,'QUILOMETRAGEM'), parseQuilometragem);
       registrar('DESCONTOS', sheetRows(wb,'DESCONTOS'), parseDescontos);
       registrar('MULTAS', sheetRows(wb,'MULTAS'), parseMultasReal);
       registrar('ABASTECIMENTO', sheetRows(wb,'ABASTECIMENTO'), parseAbastecimento);
@@ -2174,8 +2212,10 @@ renderAll();
 
   async function carregarDadosTelemetriaVeiculo(){
     let q = sb.from('vehicle_telemetry_monthly')
-      .select('raw_plate,km_rodado,fuel_cost,velocidade_media,hard_braking_count,hard_acceleration_count,hard_cornering_count,speeding_count,vehicles!inner(company_id,work_id,cost_center_id,works(name))');
+      .select('raw_plate,reference_month,km_rodado,fuel_cost,velocidade_media,hard_braking_count,hard_acceleration_count,hard_cornering_count,speeding_count,vehicles!inner(company_id,work_id,cost_center_id,works(name))');
     q = scopeFilterEmbedded(q);
+    const rangeTv = monthRange();
+    if (rangeTv) q = q.eq('reference_month', rangeTv.exact);
     const { data, error } = await q;
     if (error) { console.error('telemetria_veiculo', error); return; }
     const kmTotal = data.reduce((s,r)=>s+(Number(r.km_rodado)||0),0);
@@ -2215,14 +2255,158 @@ renderAll();
     `).join('');
   }
 
+  function mediana(nums){
+    const a = nums.filter(v=>Number.isFinite(v)).sort((x,y)=>x-y);
+    if (!a.length) return null;
+    const m = Math.floor(a.length/2);
+    return a.length % 2 ? a[m] : (a[m-1]+a[m])/2;
+  }
+  function monthKeyISO(dataStr){
+    if (!dataStr) return null;
+    const s = String(dataStr);
+    return s.length >= 7 ? s.slice(0,7) + '-01' : null;
+  }
+  function escHtml(v){
+    return String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  }
+
+  async function carregarIndicadoresCliente(){
+    try {
+      const range = monthRange();
+
+      let qKm = sb.from('mileage_monthly')
+        .select('vehicle_id,km_rodado,reference_month,vehicles!inner(monthly_cost,model,company_id,work_id,cost_center_id)');
+      qKm = scopeFilterEmbedded(qKm);
+      if (range) qKm = qKm.eq('reference_month', range.exact);
+      const { data: kmRows, error: kmErr } = await qKm;
+      if (kmErr) throw kmErr;
+
+      const kmPorPar = new Map();
+      (kmRows||[]).forEach(r => {
+        const km = Number(r.km_rodado)||0;
+        if (!r.vehicle_id || !r.reference_month || km <= 0) return;
+        const chave = `${r.vehicle_id}|${r.reference_month}`;
+        kmPorPar.set(chave, (kmPorPar.get(chave)||0) + km);
+      });
+      const paresComKm = new Set(kmPorPar.keys());
+      const kmTotal = Array.from(kmPorPar.values()).reduce((a,b)=>a+b,0);
+      const veiculosComKm = new Set(Array.from(paresComKm).map(k=>k.split('|')[0]));
+      const mesesComKm = Array.from(new Set(Array.from(paresComKm).map(k=>k.split('|')[1]))).sort();
+
+      // Custo da frota: uma mensalidade por placa/mês observado, sem duplicar por quantidade de linhas.
+      const custoPorPar = new Map();
+      (kmRows||[]).forEach(r => {
+        if (!r.vehicle_id || !r.reference_month || (Number(r.km_rodado)||0) <= 0) return;
+        const chave = `${r.vehicle_id}|${r.reference_month}`;
+        if (!custoPorPar.has(chave)) custoPorPar.set(chave, Number(r.vehicles?.monthly_cost)||0);
+      });
+      const custoFrota = Array.from(custoPorPar.values()).reduce((a,b)=>a+b,0);
+
+      let qFine = sb.from('fines')
+        .select('vehicle_id,amount,infraction_date,vehicles!inner(company_id,work_id,cost_center_id)');
+      qFine = scopeFilterEmbedded(qFine);
+      if (range) qFine = qFine.gte('infraction_date',range.start).lt('infraction_date',range.end);
+      const { data: fineRows, error: fineErr } = await qFine;
+      if (fineErr) throw fineErr;
+      const fineValid = (fineRows||[]).filter(r => paresComKm.has(`${r.vehicle_id}|${monthKeyISO(r.infraction_date)}`));
+      const multaValor = fineValid.reduce((s,r)=>s+(Number(r.amount)||0),0);
+
+      let qAcid = sb.from('accidents')
+        .select('vehicle_id,cost,occurrence_date,vehicles!inner(company_id,work_id,cost_center_id)');
+      qAcid = scopeFilterEmbedded(qAcid);
+      if (range) qAcid = qAcid.gte('occurrence_date',range.start).lt('occurrence_date',range.end);
+      const { data: acidRows, error: acidErr } = await qAcid;
+      if (acidErr) throw acidErr;
+      const acidValid = (acidRows||[]).filter(r => paresComKm.has(`${r.vehicle_id}|${monthKeyISO(r.occurrence_date)}`));
+
+      let qFuel = sb.from('fuel_records')
+        .select('liters,transaction_date,raw_data,vehicles!inner(model,company_id,work_id,cost_center_id)');
+      qFuel = scopeFilterEmbedded(qFuel);
+      if (range) qFuel = qFuel.gte('transaction_date',range.start).lt('transaction_date',range.end);
+      const { data: fuelRows, error: fuelErr } = await qFuel;
+      if (fuelErr) throw fuelErr;
+
+      const modelos = {};
+      (fuelRows||[]).forEach(r => {
+        const raw = r.raw_data || {};
+        const modelo = String(raw['MODELO VEICULO'] || r.vehicles?.model || '').trim();
+        const real = Number(raw['KM/LITRO OU LITROS/HORA']);
+        const previsto = Number(raw['DESEMPENHO ESPERADO']);
+        const litros = Number(r.liters)||0;
+        if (!modelo || !(real > 0) || !(previsto > 0)) return;
+        if (!modelos[modelo]) modelos[modelo] = { reais:[], previstos:[], litros:0, registros:0 };
+        modelos[modelo].reais.push(real);
+        modelos[modelo].previstos.push(previsto);
+        modelos[modelo].litros += litros;
+        modelos[modelo].registros++;
+      });
+      const listaModelos = Object.entries(modelos).map(([modelo,v]) => {
+        const real = mediana(v.reais), previsto = mediana(v.previstos);
+        return { modelo, real, previsto, desvio: previsto ? (real/previsto-1)*100 : null, litros:v.litros, registros:v.registros };
+      }).sort((a,b)=>b.litros-a.litros).slice(0,30);
+
+      AGG.indicadoresCliente = {
+        kmTotal,
+        veiculosComKm: veiculosComKm.size,
+        mesesComKm,
+        multaValor,
+        multaQtd: fineValid.length,
+        multaPorKm: kmTotal ? multaValor/kmTotal : null,
+        custoFrota,
+        custoFrotaPorKm: kmTotal ? custoFrota/kmTotal : null,
+        acidentesQtd: acidValid.length,
+        acidentesCusto: acidValid.reduce((s,r)=>s+(Number(r.cost)||0),0),
+        acidentesPor100kKm: kmTotal ? acidValid.length/kmTotal*100000 : null,
+        modelos: listaModelos,
+      };
+    } catch(err){
+      console.error('indicadores_cliente', err);
+      AGG.indicadoresCliente = { erro: err?.message || String(err), modelos:[] };
+    }
+  }
+
+  function renderIndicadoresCliente(){
+    const i = AGG.indicadoresCliente || {};
+    const set = (id,txt) => { const el=document.getElementById(id); if(el) el.textContent=txt; };
+    if (i.erro){
+      set('i_multaKm','—'); set('i_custoFrotaKm','—'); set('i_acidentesKm','—');
+      const c=document.getElementById('i_cobertura'); if(c) c.innerHTML=`<div class="alertcard" style="background:#FBE4E1"><span>Erro ao carregar indicadores</span><b>${escHtml(i.erro)}</b></div>`;
+      return;
+    }
+    set('i_multaKm', i.multaPorKm!=null ? 'R$ '+i.multaPorKm.toLocaleString('pt-BR',{minimumFractionDigits:4,maximumFractionDigits:4}) : '—');
+    set('i_multaKmSub', `${fmtMoney(i.multaValor||0)} · ${fmtNum(i.multaQtd||0)} multas`);
+    set('i_custoFrotaKm', i.custoFrotaPorKm!=null ? 'R$ '+i.custoFrotaPorKm.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—');
+    set('i_custoFrotaKmSub', `${fmtMoneyShort(i.custoFrota||0)} de locação no recorte`);
+    set('i_acidentesKm', i.acidentesPor100kKm!=null ? i.acidentesPor100kKm.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—');
+    set('i_acidentesKmSub', `${fmtNum(i.acidentesQtd||0)} acidentes · ${fmtMoneyShort(i.acidentesCusto||0)}`);
+    set('i_avariaKm','—'); set('i_kmForaExp','—'); set('i_idadeMedia','—');
+
+    const nomesMes = {1:'Jan',2:'Fev',3:'Mar',4:'Abr',5:'Mai',6:'Jun',7:'Jul',8:'Ago',9:'Set',10:'Out',11:'Nov',12:'Dez'};
+    const periodo = (i.mesesComKm||[]).map(x=>{ const [a,m]=x.split('-'); return `${nomesMes[Number(m)]}/${a}`; }).join(', ') || 'sem KM importado';
+    const frotaTotal = AGG.frota?.total || 0;
+    const coberturaPct = frotaTotal ? (100*(i.veiculosComKm||0)/frotaTotal) : 0;
+    const cob=document.getElementById('i_cobertura');
+    if(cob) cob.innerHTML = `
+      <div class="alertcard" style="background:#EAF4F8"><span>KM usado no cruzamento</span><b>${fmtNum(i.kmTotal||0)} km</b></div>
+      <div class="alertcard" style="background:#F2FAF9"><span>Veículos com KM</span><b>${fmtNum(i.veiculosComKm||0)} / ${fmtNum(frotaTotal)} (${coberturaPct.toFixed(1)}%)</b></div>
+      <div class="alertcard" style="background:#FDF3D6"><span>Período disponível</span><b>${escHtml(periodo)}</b></div>`;
+
+    const tbody=document.getElementById('i_tabelaModelos');
+    if(tbody) tbody.innerHTML=(i.modelos||[]).map(x=>{
+      const sinal = x.desvio==null ? '—' : (x.desvio>=0?'+':'')+x.desvio.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+      return `<tr><td>${escHtml(x.modelo)}</td><td>${x.real?.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) ?? '—'}</td><td>${x.previsto?.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) ?? '—'}</td><td>${sinal}</td><td>${fmtNum(x.registros)}</td></tr>`;
+    }).join('');
+  }
+
   async function recarregarTudo(){
     await Promise.all([
       carregarDadosFrota(), carregarDadosPreventivas(), carregarDadosCorretivas(),
       carregarDadosAcidentes(), carregarDadosKm(), carregarDadosDescontos(), carregarDadosTelemetria(),
       carregarFarolContratos(), carregarDadosMultas(), carregarDadosAbastecimento(), carregarDadosTelemetriaVeiculo(),
+      carregarIndicadoresCliente(),
     ]);
     renderVisao(); renderFrota(); renderPrev(); renderCorr(); renderAcid(); renderKm(); renderDesc(); renderGov();
-    renderTelemetria(); renderMultas(); renderAbast(); renderTelemetriaVeiculo();
+    renderTelemetria(); renderMultas(); renderAbast(); renderTelemetriaVeiculo(); renderIndicadoresCliente();
   }
 
   const ADMIN_USERS_FUNCTION_URL = 'https://ozeskcsrlqmdrenxzquz.supabase.co/functions/v1/admin-users';
@@ -2396,7 +2580,7 @@ renderAll();
 
   const PAGE_PERMISSION = {
     visao: 'page.visao_executiva', frota: 'page.frota_contratos', prev: 'page.preventiva',
-    corr: 'page.corretiva', acid: 'page.acidentes', desc: 'page.descontos', km: 'page.quilometragem',
+    corr: 'page.corretiva', acid: 'page.acidentes', desc: 'page.descontos', km: 'page.quilometragem', indic: 'page.visao_executiva',
     tel: 'page.telemetria', telv: 'page.telemetria', multas: 'page.multas', plano: 'page.plano_acao', financeiro: 'page.financeiro',
     basenova: 'action.upload_base', admin: 'page.administracao',
     // abast e gov não têm permissão própria cadastrada — ficam sempre visíveis por enquanto
