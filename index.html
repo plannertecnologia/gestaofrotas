@@ -2329,33 +2329,30 @@ renderAll();
 
   async function carregarDadosMultas(){
     try {
-      const data = await carregarFineRowsCompletos();
-      const total = data.length;
-      const valor = data.reduce((s,r)=>s+(Number(r.amount)||0),0);
-      const porMes={}, porCategoria={};
-      data.forEach(r=>{
-        if (r.infraction_date){ const m = mesNumero(r.infraction_date); porMes[m]=(porMes[m]||0)+1; }
-        const obra = r.vehicles?.works?.name || '(sem obra)';
-        porCategoria[obra] = (porCategoria[obra]||0)+1;
-      });
-      AGG.multas = { total, valor, porMes, porCategoria: topN(porCategoria,8), vencidas: 0 };
-    } catch(error){ console.error('multas', error); }
+      const data = await carregarDashboardMetrics();
+      const m = data.multas || {};
+      AGG.multas = {
+        total: Number(m.total)||0,
+        valor: Number(m.valor)||0,
+        porMes: m.porMes || {},
+        porCategoria: topN(m.porCategoria || {}, 8),
+        vencidas: Number(m.vencidas)||0
+      };
+    } catch(error){ console.error('multas_rpc', error); }
   }
 
   async function carregarDadosAbastecimento(){
     try {
-      const data = await carregarFuelRowsCompletos();
-      const qtd = data.length;
-      const valor = data.reduce((s,r)=>s+(Number(r.total_value)||0),0);
-      const litros = data.reduce((s,r)=>s+(Number(r.liters)||0),0);
-      const porMes={}, porObra={};
-      data.forEach(r=>{
-        if (r.transaction_date){ const m = mesNumero(r.transaction_date); porMes[m]=(porMes[m]||0)+(Number(r.total_value)||0); }
-        const obra = r.vehicles?.works?.name || '(sem obra)';
-        porObra[obra] = (porObra[obra]||0) + (Number(r.total_value)||0);
-      });
-      AGG.abastecimento = { qtd, valor, litros, porMes, porObra: topN(porObra,8) };
-    } catch(error){ console.error('abastecimento', error); }
+      const data = await carregarDashboardMetrics();
+      const b = data.abastecimento || {};
+      AGG.abastecimento = {
+        qtd: Number(b.qtd)||0,
+        valor: Number(b.valor)||0,
+        litros: Number(b.litros)||0,
+        porMes: b.porMes || {},
+        porObra: topN(b.porObra || {}, 8)
+      };
+    } catch(error){ console.error('abastecimento_rpc', error); }
   }
 
   async function carregarDadosTelemetriaVeiculo(){
@@ -2419,94 +2416,59 @@ renderAll();
     return String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   }
 
+
+  let dashboardMetricsCache = { key:null, promise:null };
+  async function carregarDashboardMetrics(){
+    const key = cacheKeyDados('dashboard-rpc');
+    if (dashboardMetricsCache.key === key && dashboardMetricsCache.promise) return dashboardMetricsCache.promise;
+
+    const range = monthRange();
+    const promise = (async () => {
+      if (!activeImportBatchId) throw new Error('Nenhuma carga ativa encontrada.');
+
+      const { data, error } = await sb.rpc('dashboard_client_metrics', {
+        p_batch_id: activeImportBatchId,
+        p_company_id: filtro.companyId || null,
+        p_work_id: filtro.workId || null,
+        p_cost_center_id: filtro.costCenterId || null,
+        p_month: range ? range.exact : null,
+      });
+      if (error) throw error;
+      return data || {};
+    })();
+
+    dashboardMetricsCache = { key, promise };
+    return promise;
+  }
+
   async function carregarIndicadoresCliente(){
     try {
-      const range = monthRange();
-
-      let qKm = sb.from('mileage_monthly')
-        .select('vehicle_id,km_rodado,reference_month,vehicles!inner(monthly_cost,model,company_id,work_id,cost_center_id)');
-      qKm = scopeFilterEmbedded(qKm);
-      qKm = aplicarBatch(qKm);
-      if (range) qKm = qKm.eq('reference_month', range.exact);
-      const { data: kmRows, error: kmErr } = await qKm;
-      if (kmErr) throw kmErr;
-
-      const kmPorPar = new Map();
-      (kmRows||[]).forEach(r => {
-        const km = Number(r.km_rodado)||0;
-        if (!r.vehicle_id || !r.reference_month || km <= 0) return;
-        const chave = `${r.vehicle_id}|${r.reference_month}`;
-        kmPorPar.set(chave, (kmPorPar.get(chave)||0) + km);
-      });
-      const paresComKm = new Set(kmPorPar.keys());
-      const kmTotal = Array.from(kmPorPar.values()).reduce((a,b)=>a+b,0);
-      const veiculosComKm = new Set(Array.from(paresComKm).map(k=>k.split('|')[0]));
-      const mesesComKm = Array.from(new Set(Array.from(paresComKm).map(k=>k.split('|')[1]))).sort();
-
-      // Custo da frota: uma mensalidade por placa/mês observado, sem duplicar por quantidade de linhas.
-      const custoPorPar = new Map();
-      (kmRows||[]).forEach(r => {
-        if (!r.vehicle_id || !r.reference_month || (Number(r.km_rodado)||0) <= 0) return;
-        const chave = `${r.vehicle_id}|${r.reference_month}`;
-        if (!custoPorPar.has(chave)) custoPorPar.set(chave, Number(r.vehicles?.monthly_cost)||0);
-      });
-      const custoFrota = Array.from(custoPorPar.values()).reduce((a,b)=>a+b,0);
-
-      const fineRows = await carregarFineRowsCompletos();
-      const fineValid = (fineRows||[]).filter(r => paresComKm.has(`${r.vehicle_id}|${monthKeyISO(r.infraction_date)}`));
-      const multaValor = fineValid.reduce((s,r)=>s+(Number(r.amount)||0),0);
-
-      let qAcid = sb.from('accidents')
-        .select('vehicle_id,cost,occurrence_date,vehicles!inner(company_id,work_id,cost_center_id)');
-      qAcid = scopeFilterEmbedded(qAcid);
-      qAcid = aplicarBatch(qAcid);
-      if (range) qAcid = qAcid.gte('occurrence_date',range.start).lt('occurrence_date',range.end);
-      const { data: acidRows, error: acidErr } = await qAcid;
-      if (acidErr) throw acidErr;
-      const acidValid = (acidRows||[]).filter(r => paresComKm.has(`${r.vehicle_id}|${monthKeyISO(r.occurrence_date)}`));
-
-      const fuelRows = await carregarFuelRowsCompletos();
-
-      const modelos = {};
-      (fuelRows||[]).forEach(r => {
-        const raw = r.raw_data || {};
-        const modelo = String(raw['MODELO VEICULO'] || r.vehicles?.model || '').trim();
-        const real = Number(raw['KM/LITRO OU LITROS/HORA']);
-        const previsto = Number(raw['DESEMPENHO ESPERADO']);
-        const litros = Number(r.liters)||0;
-        if (!modelo || !(real > 0) || !(previsto > 0)) return;
-        if (!modelos[modelo]) modelos[modelo] = { reais:[], previstos:[], litros:0, registros:0 };
-        modelos[modelo].reais.push(real);
-        modelos[modelo].previstos.push(previsto);
-        modelos[modelo].litros += litros;
-        modelos[modelo].registros++;
-      });
-      const listaModelos = Object.entries(modelos).map(([modelo,v]) => {
-        const real = mediana(v.reais), previsto = mediana(v.previstos);
-        return { modelo, real, previsto, desvio: previsto ? (real/previsto-1)*100 : null, litros:v.litros, registros:v.registros };
-      }).sort((a,b)=>b.litros-a.litros).slice(0,30);
-
+      const data = await carregarDashboardMetrics();
       AGG.indicadoresCliente = {
-        kmTotal,
-        veiculosComKm: veiculosComKm.size,
-        mesesComKm,
-        multaValor,
-        multaQtd: fineValid.length,
-        multaPorKm: kmTotal ? multaValor/kmTotal : null,
-        custoFrota,
-        custoFrotaPorKm: kmTotal ? custoFrota/kmTotal : null,
-        acidentesQtd: acidValid.length,
-        acidentesCusto: acidValid.reduce((s,r)=>s+(Number(r.cost)||0),0),
-        acidentesPor100kKm: kmTotal ? acidValid.length/kmTotal*100000 : null,
-        modelos: listaModelos,
+        kmTotal: Number(data.kmTotal)||0,
+        veiculosComKm: Number(data.veiculosComKm)||0,
+        mesesComKm: Array.isArray(data.mesesComKm) ? data.mesesComKm : [],
+        multaValor: Number(data.multaValor)||0,
+        multaQtd: Number(data.multaQtd)||0,
+        multaPorKm: data.multaPorKm == null ? null : Number(data.multaPorKm),
+        custoFrota: Number(data.custoFrota)||0,
+        custoFrotaPorKm: data.custoFrotaPorKm == null ? null : Number(data.custoFrotaPorKm),
+        acidentesQtd: Number(data.acidentesQtd)||0,
+        acidentesCusto: Number(data.acidentesCusto)||0,
+        acidentesPor100kKm: data.acidentesPor100kKm == null ? null : Number(data.acidentesPor100kKm),
+        modelos: (data.modelos||[]).map(x => ({
+          modelo: x.modelo,
+          real: x.real == null ? null : Number(x.real),
+          previsto: x.previsto == null ? null : Number(x.previsto),
+          desvio: x.desvio == null ? null : Number(x.desvio),
+          litros: Number(x.litros)||0,
+          registros: Number(x.registros)||0,
+        })),
       };
     } catch(err){
-      console.error('indicadores_cliente', err);
-      const msg = err?.message || String(err);
+      console.error('indicadores_cliente_rpc', err);
       AGG.indicadoresCliente = {
-        erro: msg.includes('statement timeout')
-          ? 'Consulta excedeu o tempo do Supabase. A versão corrigida remove o JOIN pesado de abastecimentos; se persistir, execute o arquivo SQL de índices que acompanha a correção.'
-          : msg,
+        erro: 'Falha na RPC de indicadores: ' + (err?.message || String(err)),
         modelos:[]
       };
     }
