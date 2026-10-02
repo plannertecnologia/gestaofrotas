@@ -1807,19 +1807,59 @@ renderAll();
     return [prefix, activeImportBatchId||'', filtro.companyId||'', filtro.workId||'', filtro.costCenterId||'', filtro.mes||''].join('|');
   }
 
+  // Cache do escopo de veículos. Evita JOIN pesado em tabelas grandes (fuel_records/fines).
+  let scopedVehiclesCache = { key:null, promise:null };
+  async function carregarVeiculosEscopo(){
+    const key = cacheKeyDados('vehicles-scope');
+    if (scopedVehiclesCache.key === key && scopedVehiclesCache.promise) return scopedVehiclesCache.promise;
+
+    const promise = (async () => {
+      let q = sb.from('vehicles')
+        .select('vehicle_id,plate,model,monthly_cost,company_id,work_id,cost_center_id,last_import_batch_id,works(name)');
+      if (activeImportBatchId) q = q.eq('last_import_batch_id', activeImportBatchId);
+      if (filtro.companyId) q = q.eq('company_id', filtro.companyId);
+      if (filtro.workId) q = q.eq('work_id', filtro.workId);
+      if (filtro.costCenterId) q = q.eq('cost_center_id', filtro.costCenterId);
+
+      const { data, error } = await q;
+      if (error) throw new Error('Veículos/escopo: ' + error.message);
+
+      const rows = data || [];
+      return {
+        rows,
+        map: new Map(rows.map(v => [v.vehicle_id, v])),
+        ids: new Set(rows.map(v => v.vehicle_id))
+      };
+    })();
+
+    scopedVehiclesCache = { key, promise };
+    return promise;
+  }
+
   let fuelRowsCache = { key:null, promise:null };
   async function carregarFuelRowsCompletos(){
     const key = cacheKeyDados('fuel');
     if (fuelRowsCache.key === key && fuelRowsCache.promise) return fuelRowsCache.promise;
+
     const rangeAb = monthRange();
-    const promise = fetchAllPages(() => {
-      let q = sb.from('fuel_records')
-        .select('vehicle_id,total_value,liters,transaction_date,raw_data,vehicles!inner(model,company_id,work_id,cost_center_id,works(name))');
-      q = scopeFilterEmbedded(q);
-      q = aplicarBatch(q);
-      if (rangeAb) q = q.gte('transaction_date', rangeAb.start).lt('transaction_date', rangeAb.end);
-      return q;
-    });
+    const promise = (async () => {
+      const scope = await carregarVeiculosEscopo();
+
+      // IMPORTANTE: sem JOIN com vehicles. A tabela de abastecimento tem dezenas de milhares
+      // de linhas; o JOIN + raw_data era a principal causa de statement_timeout.
+      const rows = await fetchAllPages(() => {
+        let q = sb.from('fuel_records')
+          .select('vehicle_id,total_value,liters,transaction_date,raw_data');
+        q = aplicarBatch(q);
+        if (rangeAb) q = q.gte('transaction_date', rangeAb.start).lt('transaction_date', rangeAb.end);
+        return q;
+      }, 500, 2);
+
+      return rows
+        .filter(r => r.vehicle_id && scope.ids.has(r.vehicle_id))
+        .map(r => ({ ...r, vehicles: scope.map.get(r.vehicle_id) }));
+    })();
+
     fuelRowsCache = { key, promise };
     return promise;
   }
@@ -1828,15 +1868,24 @@ renderAll();
   async function carregarFineRowsCompletos(){
     const key = cacheKeyDados('fines');
     if (fineRowsCache.key === key && fineRowsCache.promise) return fineRowsCache.promise;
+
     const rangeM = monthRange();
-    const promise = fetchAllPages(() => {
-      let q = sb.from('fines')
-        .select('vehicle_id,amount,infraction_date,status,vehicles!inner(company_id,work_id,cost_center_id,works(name))');
-      q = scopeFilterEmbedded(q);
-      q = aplicarBatch(q);
-      if (rangeM) q = q.gte('infraction_date', rangeM.start).lt('infraction_date', rangeM.end);
-      return q;
-    });
+    const promise = (async () => {
+      const scope = await carregarVeiculosEscopo();
+
+      const rows = await fetchAllPages(() => {
+        let q = sb.from('fines')
+          .select('vehicle_id,amount,infraction_date,status');
+        q = aplicarBatch(q);
+        if (rangeM) q = q.gte('infraction_date', rangeM.start).lt('infraction_date', rangeM.end);
+        return q;
+      }, 750, 2);
+
+      return rows
+        .filter(r => r.vehicle_id && scope.ids.has(r.vehicle_id))
+        .map(r => ({ ...r, vehicles: scope.map.get(r.vehicle_id) }));
+    })();
+
     fineRowsCache = { key, promise };
     return promise;
   }
@@ -2453,7 +2502,13 @@ renderAll();
       };
     } catch(err){
       console.error('indicadores_cliente', err);
-      AGG.indicadoresCliente = { erro: err?.message || String(err), modelos:[] };
+      const msg = err?.message || String(err);
+      AGG.indicadoresCliente = {
+        erro: msg.includes('statement timeout')
+          ? 'Consulta excedeu o tempo do Supabase. A versão corrigida remove o JOIN pesado de abastecimentos; se persistir, execute o arquivo SQL de índices que acompanha a correção.'
+          : msg,
+        modelos:[]
+      };
     }
   }
 
