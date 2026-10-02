@@ -2442,8 +2442,13 @@ renderAll();
   }
 
   async function carregarIndicadoresCliente(){
+    const chaveSolicitada = cacheKeyDados('dashboard-rpc');
     try {
       const data = await carregarDashboardMetrics();
+
+      // Ignora retorno antigo se o usuário já mudou Empresa/Obra/Mês.
+      if (chaveSolicitada !== cacheKeyDados('dashboard-rpc')) return;
+
       AGG.indicadoresCliente = {
         kmTotal: Number(data.kmTotal)||0,
         veiculosComKm: Number(data.veiculosComKm)||0,
@@ -2456,6 +2461,9 @@ renderAll();
         acidentesQtd: Number(data.acidentesQtd)||0,
         acidentesCusto: Number(data.acidentesCusto)||0,
         acidentesPor100kKm: data.acidentesPor100kKm == null ? null : Number(data.acidentesPor100kKm),
+        fuelRows: Number(data.fuelRows)||0,
+        fuelEffRows: Number(data.fuelEffRows)||0,
+        requestedMonth: data.requestedMonth || null,
         modelos: (data.modelos||[]).map(x => ({
           modelo: x.modelo,
           real: x.real == null ? null : Number(x.real),
@@ -2498,24 +2506,47 @@ renderAll();
     if(cob) cob.innerHTML = `
       <div class="alertcard" style="background:#EAF4F8"><span>KM usado no cruzamento</span><b>${fmtNum(i.kmTotal||0)} km</b></div>
       <div class="alertcard" style="background:#F2FAF9"><span>Veículos com KM</span><b>${fmtNum(i.veiculosComKm||0)} / ${fmtNum(frotaTotal)} (${coberturaPct.toFixed(1)}%)</b></div>
-      <div class="alertcard" style="background:#FDF3D6"><span>Período disponível</span><b>${escHtml(periodo)}</b></div>`;
+      <div class="alertcard" style="background:#FDF3D6"><span>${filtro.mes ? 'KM no mês selecionado' : 'Período disponível'}</span><b>${escHtml(periodo)}</b></div>`;
 
     const tbody=document.getElementById('i_tabelaModelos');
-    if(tbody) tbody.innerHTML=(i.modelos||[]).map(x=>{
-      const sinal = x.desvio==null ? '—' : (x.desvio>=0?'+':'')+x.desvio.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
-      return `<tr><td>${escHtml(x.modelo)}</td><td>${x.real?.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) ?? '—'}</td><td>${x.previsto?.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) ?? '—'}</td><td>${sinal}</td><td>${fmtNum(x.registros)}</td></tr>`;
-    }).join('');
+    if(tbody) {
+      const modelos = i.modelos || [];
+      if (modelos.length) {
+        tbody.innerHTML = modelos.map(x=>{
+          const sinal = x.desvio==null ? '—' : (x.desvio>=0?'+':'')+x.desvio.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+          return `<tr><td>${escHtml(x.modelo)}</td><td>${x.real?.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) ?? '—'}</td><td>${x.previsto?.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) ?? '—'}</td><td>${sinal}</td><td>${fmtNum(x.registros)}</td></tr>`;
+        }).join('');
+      } else {
+        const detalhe = i.fuelRows
+          ? `${fmtNum(i.fuelRows)} abastecimentos no filtro, porém nenhum registro válido com Real + Previsto.`
+          : 'Nenhum abastecimento encontrado para o filtro selecionado.';
+        tbody.innerHTML = `<tr><td colspan="5" style="padding:18px;text-align:center;color:var(--muted);">${escHtml(detalhe)}</td></tr>`;
+      }
+    }
   }
 
+  let recarregarTudoSeq = 0;
   async function recarregarTudo(forceBatch=false){
+    const minhaSeq = ++recarregarTudoSeq;
+
+    // Feedback visual imediato: evita parecer que o filtro já terminou enquanto a RPC ainda roda.
+    const cob = document.getElementById('i_cobertura');
+    if (cob) cob.innerHTML = '<div class="alertcard" style="background:#EAF4F8"><span>Atualizando indicadores...</span><b>aguarde</b></div>';
+
     try { await carregarBatchAtivo(forceBatch); }
     catch(err) { console.error('batch_ativo', err); }
+
     await Promise.all([
       carregarDadosFrota(), carregarDadosPreventivas(), carregarDadosCorretivas(),
       carregarDadosAcidentes(), carregarDadosKm(), carregarDadosDescontos(), carregarDadosTelemetria(),
       carregarFarolContratos(), carregarDadosMultas(), carregarDadosAbastecimento(), carregarDadosTelemetriaVeiculo(),
       carregarIndicadoresCliente(),
     ]);
+
+    // Se o usuário mudou o filtro enquanto esta carga rodava, esta resposta ficou velha.
+    // Ela NÃO pode sobrescrever a tela da consulta mais nova.
+    if (minhaSeq !== recarregarTudoSeq) return;
+
     renderVisao(); renderFrota(); renderPrev(); renderCorr(); renderAcid(); renderKm(); renderDesc(); renderGov();
     renderTelemetria(); renderMultas(); renderAbast(); renderTelemetriaVeiculo(); renderIndicadoresCliente();
   }
