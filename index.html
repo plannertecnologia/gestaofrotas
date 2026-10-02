@@ -488,8 +488,9 @@
     <div class="kpi navy"><div class="label">R$ Multas / KM</div><div class="value" id="i_multaKm">–</div><div class="sub" id="i_multaKmSub">mesma placa e mês</div></div>
     <div class="kpi warn"><div class="label">Avarias / KM</div><div class="value" id="i_avariaKm">–</div><div class="sub">aguardando base de avarias</div></div>
     <div class="kpi teal"><div class="label">Custo Frota / KM</div><div class="value" id="i_custoFrotaKm">–</div><div class="sub" id="i_custoFrotaKmSub">locação da frota monitorada</div></div>
+    <div class="kpi teal"><div class="label">Eficiência KM/L</div><div class="value" id="i_eficienciaKmL">–</div><div class="sub" id="i_eficienciaKmLSub">real x previsto</div></div>
     <div class="kpi warn"><div class="label">KM Fora do Expediente</div><div class="value" id="i_kmForaExp">–</div><div class="sub">aguardando KM por viagem/horário</div></div>
-    <div class="kpi warn"><div class="label">Idade Média da Frota</div><div class="value" id="i_idadeMedia">–</div><div class="sub">aguardando ano fabricação/modelo</div></div>
+    <div class="kpi navy"><div class="label">Idade Média da Frota</div><div class="value" id="i_idadeMedia">–</div><div class="sub" id="i_idadeMediaSub">tempo desde a entrega</div></div>
     <div class="kpi danger"><div class="label">Acidentes / 100 mil KM</div><div class="value" id="i_acidentesKm">–</div><div class="sub" id="i_acidentesKmSub">mesma placa e mês</div></div>
   </div>
 
@@ -503,13 +504,12 @@
       <h3>Indicadores que dependem de nova fonte</h3>
       <div class="textcard"><b>Avarias</b><span>Necessário: placa, data, quantidade/ocorrência e custo da avaria.</span></div>
       <div class="textcard"><b>KM fora do expediente</b><span>Necessário: viagens/posições com data/hora e distância percorrida — eventos isolados não bastam.</span></div>
-      <div class="textcard"><b>Idade da frota</b><span>Necessário: ano de fabricação ou ano-modelo por placa.</span></div>
     </div>
   </div>
 
   <div class="card">
     <h3>KM/L por Modelo — Real x Previsto</h3>
-    <div class="cs">Mediana do KM/L real positivo versus mediana do desempenho esperado. A mediana evita que outliers extremos da base distorçam a leitura.</div>
+    <div class="cs">Mediana do campo KM/LITRO OU LITROS/HORA versus DESEMPENHO ESPERADO, agrupada por MODELO VEICULO. A mediana reduz o efeito de outliers.</div>
     <div style="max-height:460px; overflow-y:auto;">
       <table class="mini">
         <thead><tr><th>Modelo</th><th>KM/L Real</th><th>KM/L Previsto</th><th>Desvio</th><th>Registros</th></tr></thead>
@@ -2458,6 +2458,12 @@ renderAll();
         multaPorKm: data.multaPorKm == null ? null : Number(data.multaPorKm),
         custoFrota: Number(data.custoFrota)||0,
         custoFrotaPorKm: data.custoFrotaPorKm == null ? null : Number(data.custoFrotaPorKm),
+        idadeMediaAnos: data.idadeMediaAnos == null ? null : Number(data.idadeMediaAnos),
+        veiculosComIdade: Number(data.veiculosComIdade)||0,
+        eficienciaReal: data.eficienciaReal == null ? null : Number(data.eficienciaReal),
+        eficienciaPrevista: data.eficienciaPrevista == null ? null : Number(data.eficienciaPrevista),
+        eficienciaDesvio: data.eficienciaDesvio == null ? null : Number(data.eficienciaDesvio),
+        eficienciaRegistros: Number(data.eficienciaRegistros)||0,
         acidentesQtd: Number(data.acidentesQtd)||0,
         acidentesCusto: Number(data.acidentesCusto)||0,
         acidentesPor100kKm: data.acidentesPor100kKm == null ? null : Number(data.acidentesPor100kKm),
@@ -2486,7 +2492,7 @@ renderAll();
     const i = AGG.indicadoresCliente || {};
     const set = (id,txt) => { const el=document.getElementById(id); if(el) el.textContent=txt; };
     if (i.erro){
-      set('i_multaKm','—'); set('i_custoFrotaKm','—'); set('i_acidentesKm','—');
+      set('i_multaKm','—'); set('i_custoFrotaKm','—'); set('i_eficienciaKmL','—'); set('i_idadeMedia','—'); set('i_acidentesKm','—');
       const c=document.getElementById('i_cobertura'); if(c) c.innerHTML=`<div class="alertcard" style="background:#FBE4E1"><span>Erro ao carregar indicadores</span><b>${escHtml(i.erro)}</b></div>`;
       return;
     }
@@ -2494,9 +2500,21 @@ renderAll();
     set('i_multaKmSub', `${fmtMoney(i.multaValor||0)} · ${fmtNum(i.multaQtd||0)} multas`);
     set('i_custoFrotaKm', i.custoFrotaPorKm!=null ? 'R$ '+i.custoFrotaPorKm.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—');
     set('i_custoFrotaKmSub', `${fmtMoneyShort(i.custoFrota||0)} de locação no recorte`);
+
+    set('i_eficienciaKmL', i.eficienciaReal!=null ? i.eficienciaReal.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' km/L' : '—');
+    const desvioEf = i.eficienciaDesvio==null ? '—' : (i.eficienciaDesvio>=0?'+':'')+i.eficienciaDesvio.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+    set('i_eficienciaKmLSub', i.eficienciaPrevista!=null
+      ? `previsto ${i.eficienciaPrevista.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})} · ${desvioEf}`
+      : 'sem desempenho previsto válido');
+
+    set('i_idadeMedia', i.idadeMediaAnos!=null ? i.idadeMediaAnos.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' anos' : '—');
+    set('i_idadeMediaSub', i.veiculosComIdade
+      ? `${fmtNum(i.veiculosComIdade)} veículos · entrega → hoje/fim do contrato`
+      : 'sem data de entrega válida');
+
     set('i_acidentesKm', i.acidentesPor100kKm!=null ? i.acidentesPor100kKm.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—');
     set('i_acidentesKmSub', `${fmtNum(i.acidentesQtd||0)} acidentes · ${fmtMoneyShort(i.acidentesCusto||0)}`);
-    set('i_avariaKm','—'); set('i_kmForaExp','—'); set('i_idadeMedia','—');
+    set('i_avariaKm','—'); set('i_kmForaExp','—');
 
     const nomesMes = {1:'Jan',2:'Fev',3:'Mar',4:'Abr',5:'Mai',6:'Jun',7:'Jul',8:'Ago',9:'Set',10:'Out',11:'Nov',12:'Dez'};
     const periodo = (i.mesesComKm||[]).map(x=>{ const [a,m]=x.split('-'); return `${nomesMes[Number(m)]}/${a}`; }).join(', ') || 'sem KM importado';
