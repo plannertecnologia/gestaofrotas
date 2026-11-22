@@ -1811,10 +1811,18 @@ renderAll();
 
   async function carregarBatchAtivo(force=false){
     if (activeBatchLoaded && !force) return activeImportBatchId;
-    const { data: { session } } = await sb.auth.getSession();
-    if (!session) return null;
+    let { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      // Logo após o login a sessão pode ainda não estar 100% hidratada no client —
+      // espera um instante e tenta de novo antes de desistir (evita "Nenhuma carga
+      // ativa encontrada" só porque essa checagem rodou cedo demais).
+      await new Promise(r => setTimeout(r, 400));
+      ({ data: { session } } = await sb.auth.getSession());
+      if (!session) return null;
+    }
     const resp = await fetch(DATA_EDGE_FUNCTION_URL, {
       method: 'GET',
+      cache: 'no-store', // nunca usar uma resposta em cache do navegador aqui — precisa refletir o banco agora.
       headers: { 'Authorization': 'Bearer ' + session.access_token }
     });
     const result = await resp.json();
@@ -2724,6 +2732,12 @@ renderAll();
 
     try { await carregarBatchAtivo(forceBatch); }
     catch(err) { console.error('batch_ativo', err); }
+    // Segunda tentativa: se por qualquer motivo (timing, sessão, rede) a carga ativa
+    // não veio dessa vez, tenta mais uma vez forçado antes de seguir com os cards vazios.
+    if (!activeImportBatchId) {
+      try { await carregarBatchAtivo(true); }
+      catch(err) { console.error('batch_ativo_retry', err); }
+    }
 
     await Promise.all([
       carregarDadosFrota(), carregarDadosPreventivas(), carregarDadosCorretivas(),
