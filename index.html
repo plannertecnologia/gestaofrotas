@@ -1407,7 +1407,17 @@ renderAll();
   function sheetRows(wb, sheetName){
     const ws = wb.Sheets[sheetName];
     if (!ws) return null;
-    return XLSX.utils.sheet_to_json(ws, { defval: null });
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: null });
+    // Planilhas às vezes trazem cabeçalhos com espaço sobrando (ex.: " CUSTO DE LOCAÇÃO "
+    // em vez de "CUSTO DE LOCAÇÃO"), o que quebra silenciosamente qualquer parser que
+    // busca a coluna pelo nome exato (r["CUSTO DE LOCAÇÃO"] vira undefined). Normaliza
+    // todas as chaves (trim) logo na leitura pra isso nunca mais depender de o Excel ter
+    // salvo o cabeçalho sem espaço extra.
+    return rows.map(r => {
+      const out = {};
+      for (const k in r) out[(typeof k === "string" ? k.trim() : k)] = r[k];
+      return out;
+    });
   }
 
   // ---------- Parsers com os nomes REAIS de aba/coluna da base OFICIAL do cliente (Base_Frota_-_Utilities_consolidada.xlsx) ----------
