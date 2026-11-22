@@ -254,7 +254,14 @@
           <select id="filtroObra" class="filtroselect"><option value="">Todas</option></select>
         </div>
         <div class="pill filterpill">
-          <span>Mês (2026)</span>
+          <span>Ano</span>
+          <select id="filtroAno" class="filtroselect">
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+          </select>
+        </div>
+        <div class="pill filterpill">
+          <span>Mês</span>
           <select id="filtroMes" class="filtroselect">
             <option value="">Todos</option>
             <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
@@ -987,8 +994,9 @@ function renderDesc(){
   document.getElementById('d_enviadoRhPct').textContent = pct(d.enviadoRh['SIM']||0, d.total)+'% dos registros';
   document.getElementById('d_regularizar').textContent = fmtNum(d.total-(d.enviadoRh['SIM']||0));
   barList(document.getElementById('d_porObra'), d.porObra, {money:true});
-  const meses = Object.keys(d.porMes).sort((a,b)=>a-b);
-  mkChart('d_chartMes', {type:'line', data:{labels:meses.map(m=>MESES_ABREV[m-1]), datasets:[{data:meses.map(m=>d.porMes[m]), borderColor:COLORS.teal, backgroundColor:COLORS.teal, tension:.3}]},
+  // chaves agora são "AAAA-MM" (ordenam certo como string); rótulo sempre com o ano junto (ex. "Jan/26")
+  const meses = Object.keys(d.porMes).sort();
+  mkChart('d_chartMes', {type:'line', data:{labels:meses.map(m=>MESES_ABREV[Number(m.slice(5,7))-1]+'/'+m.slice(2,4)), datasets:[{data:meses.map(m=>d.porMes[m]), borderColor:COLORS.teal, backgroundColor:COLORS.teal, tension:.3}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
   const motivoDescLabels = Object.keys(d.motivoTop);
   const idxMotivoDescAtivo = motivoDescLabels.indexOf(d.filtroMotivo);
@@ -1546,6 +1554,16 @@ renderAll();
   function parseMultasReal(rows){
     return rows.map(r => {
       const prazo = r['Prazo de Identificação do Condutor / Defesa Prévia'];
+      // "Horário da Infração" vem como texto "HH:MM" (às vezes "HH:MM:SS"); normaliza para "HH:MM".
+      let horario = r['Horário da Infração'];
+      if (horario != null) {
+        if (horario instanceof Date) {
+          horario = String(horario.getHours()).padStart(2,'0') + ':' + String(horario.getMinutes()).padStart(2,'0');
+        } else {
+          const m = String(horario).match(/^(\d{1,2}):(\d{2})/);
+          horario = m ? (m[1].padStart(2,'0') + ':' + m[2]) : null;
+        }
+      } else horario = null;
       return {
         raw_plate: r['Placa'],
         driver_name: r['Condutor'] || null,
@@ -1568,6 +1586,9 @@ renderAll();
         manager_email: r['Gestor Email'] || null,
         responsible_party: r['Responsável pela Multa'] || null,
         nic_value: toNum(r['Valor NIC']),
+        // Pedido do cliente (nov/2026): termo de desconto e período do dia da infração
+        discount_term: r['Termo de Desconto'] || null,
+        infraction_time: horario,
         raw_data: r,
       };
     }).filter(v => v.raw_plate);
@@ -1676,23 +1697,63 @@ renderAll();
     document.getElementById('previewCard').style.display = 'none';
     document.getElementById('baseConsolidadaInput').value = '';
   });
+  // Acima desse tamanho, o módulo é enviado em várias chamadas (chunks) em vez de uma
+  // só — a Edge Function tem limite de memória e a planilha de Abastecimento (~48 mil
+  // linhas) sozinha já estoura esse limite numa chamada única.
+  const TAMANHO_CHUNK_ENVIO = 5000;
+  function dividirEmPartes(arr, tamanho){
+    const partes = [];
+    for (let i=0;i<arr.length;i+=tamanho) partes.push(arr.slice(i, i+tamanho));
+    return partes;
+  }
+
   document.getElementById('btnConfirmarImport').addEventListener('click', async () => {
     const msgEl = document.getElementById('importResultMsg');
-    msgEl.textContent = 'Enviando e gravando no banco...';
     const { data: { session } } = await sb.auth.getSession();
     if (!session) { msgEl.textContent = 'Sessão expirada, faça login novamente.'; return; }
-    try {
+
+    // Separa módulos "pequenos" (vão juntos na 1ª chamada) dos "grandes" (vão em pedaços,
+    // uma chamada por pedaço, reaproveitando o mesmo batchId).
+    const modulosPequenos = {};
+    const pedacosGrandes = []; // [{nome, parte}]
+    for (const [nome, linhas] of Object.entries(ultimosModulos)) {
+      if (Array.isArray(linhas) && linhas.length > TAMANHO_CHUNK_ENVIO) {
+        dividirEmPartes(linhas, TAMANHO_CHUNK_ENVIO).forEach(parte => pedacosGrandes.push({ nome, parte }));
+      } else {
+        modulosPequenos[nome] = linhas;
+      }
+    }
+    const totalChamadas = 1 + pedacosGrandes.length;
+
+    async function chamarEdge(payload){
       const resp = await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...ultimoArquivo, modules: ultimosModulos }),
+        body: JSON.stringify(payload),
       });
-      const result = await resp.json();
+      let result;
+      try { result = await resp.json(); }
+      catch(e){ throw new Error('Resposta inválida do servidor (HTTP ' + resp.status + '). Pode ser limite de memória da function — tenta de novo ou me avisa.'); }
+      return result;
+    }
+
+    try {
+      msgEl.textContent = `Enviando 1/${totalChamadas} (dados principais)...`;
+      let result = await chamarEdge({ ...ultimoArquivo, modules: modulosPequenos, finalize: pedacosGrandes.length === 0 });
       if (result.warning === 'DUPLICATE_FILE') {
         msgEl.innerHTML = `⚠️ Este arquivo aparenta já ter sido importado em ${new Date(result.previousImportAt).toLocaleString('pt-BR')}.`;
         return;
       }
       if (result.error) { msgEl.innerHTML = '❌ ' + result.error; return; }
+      const batchId = result.batchId;
+
+      for (let i=0; i<pedacosGrandes.length; i++) {
+        const isLast = i === pedacosGrandes.length - 1;
+        msgEl.textContent = `Enviando ${i+2}/${totalChamadas} (${pedacosGrandes[i].nome}, pedaço ${i+1}/${pedacosGrandes.length})...`;
+        result = await chamarEdge({ batchId, modules: { [pedacosGrandes[i].nome]: pedacosGrandes[i].parte }, finalize: isLast });
+        if (result.error) { msgEl.innerHTML = `❌ Falhou no pedaço ${i+1}/${pedacosGrandes.length} de ${pedacosGrandes[i].nome}: ` + result.error; return; }
+      }
+
       let debugHtml = '';
       if (result.debugErrors && Object.keys(result.debugErrors).length) {
         debugHtml = '<br><b>Detalhe dos erros:</b><br>' + Object.entries(result.debugErrors).map(([t,m])=>`${t}: ${m}`).join('<br>');
@@ -1714,7 +1775,7 @@ renderAll();
   // Abastecimento e Multas seguem sem base própria (dados reais ainda não existem).
 
   const DATA_EDGE_FUNCTION_URL = 'https://ozeskcsrlqmdrenxzquz.supabase.co/functions/v1/import-consolidada';
-  let filtro = { companyId: '', workId: '', costCenterId: '', mes: '' };
+  let filtro = { companyId: '', workId: '', costCenterId: '', mes: '', ano: '2026' };
   let activeImportBatchId = null;
   let activeBatchMeta = null;
   let activeBatchLoaded = false;
@@ -1757,7 +1818,7 @@ renderAll();
     }
     if (filtro.mes) {
       const nomesMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-      partes.push('Mês: ' + nomesMes[Number(filtro.mes)-1]);
+      partes.push('Mês: ' + nomesMes[Number(filtro.mes)-1] + '/' + filtro.ano);
     }
     if (typeof filtroTipoFrota !== 'undefined' && filtroTipoFrota) partes.push('Tipo de Frota: ' + filtroTipoFrota);
     if (typeof filtroPrev !== 'undefined') {
@@ -1830,7 +1891,12 @@ renderAll();
     if (meses <= 24) return '19-24m';
     return '25m+';
   }
-  function mesLabel(dataStr){ if(!dataStr) return '?'; return MESES_NOMES[new Date(dataStr).getUTCMonth()]; }
+  function mesLabel(dataStr){
+    if(!dataStr) return '?';
+    const d = new Date(dataStr);
+    // Sempre mostra o ano junto (ex.: "Jan/25") — pedido do cliente pra não confundir Jan/2025 com Jan/2026.
+    return MESES_NOMES[d.getUTCMonth()] + '/' + String(d.getUTCFullYear()).slice(-2);
+  }
   function mesNumero(dataStr){ if(!dataStr) return null; return new Date(dataStr).getUTCMonth()+1; }
   function scopeFilterEmbedded(q){
     if (filtro.companyId) q = q.eq('vehicles.company_id', filtro.companyId);
@@ -1839,7 +1905,7 @@ renderAll();
   }
   function monthRange(){
     if (!filtro.mes) return null;
-    const year = 2026;
+    const year = Number(filtro.ano) || 2026;
     const mm = String(filtro.mes).padStart(2,'0');
     const start = `${year}-${mm}-01`;
     const end = Number(filtro.mes) === 12 ? `${year+1}-01-01` : `${year}-${String(Number(filtro.mes)+1).padStart(2,'0')}-01`;
@@ -1867,7 +1933,7 @@ renderAll();
   }
 
   function cacheKeyDados(prefix){
-    return [prefix, activeImportBatchId||'', filtro.companyId||'', filtro.workId||'', filtro.costCenterId||'', filtro.mes||''].join('|');
+    return [prefix, activeImportBatchId||'', filtro.companyId||'', filtro.workId||'', filtro.costCenterId||'', filtro.mes||'', filtro.ano||''].join('|');
   }
 
   // Cache do escopo de veículos. Evita JOIN pesado em tabelas grandes (fuel_records/fines).
@@ -1972,6 +2038,7 @@ renderAll();
       atualizarFiltroAtivoInfo(); recarregarTudo();
     });
     document.getElementById('filtroMes').addEventListener('change', (e) => { filtro.mes = e.target.value; atualizarFiltroAtivoInfo(); recarregarTudo(); });
+    document.getElementById('filtroAno').addEventListener('change', (e) => { filtro.ano = e.target.value; atualizarFiltroAtivoInfo(); recarregarTudo(); });
   }
 
   let filtroTipoFrota = '';
@@ -2277,7 +2344,7 @@ renderAll();
     const porColab={};
     data.forEach(r=>{
       const raw = r.raw_data || {};
-      if (r.occurrence_date){ const m = mesNumero(r.occurrence_date); porMes[m]=(porMes[m]||0)+(Number(r.amount)||0); }
+      if (r.occurrence_date){ const m = r.occurrence_date.slice(0,7); porMes[m]=(porMes[m]||0)+(Number(r.amount)||0); }
       const obra = raw['OBRA'] || '(sem obra)';
       porObra[obra] = (porObra[obra]||0) + (Number(r.amount)||0);
       const rh = raw['ENVIADO AO RH'] || '(não informado)';
