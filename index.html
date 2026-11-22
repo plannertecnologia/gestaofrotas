@@ -12,73 +12,93 @@
   :root{
     --navy:#00264C; --blue-dark:#0D466F; --blue:#0D83C6;
     --teal-dark:#114E52; --teal:#18686E; --cyan:#C1EEF1; --gold:#DEBA08;
-    --bg:#F4F7F9; --card:#FFFFFF; --text:#0D1B2A; --muted:#5C7080;
+    --bg:#F3F6FA; --card:#FFFFFF; --text:#0D1B2A; --muted:#5C7080;
     --danger:#C0392B; --ok:#18686E; --sidebar-w:96px;
+    --border:#E5ECF1; --shadow:0 4px 18px rgba(13,38,76,.08); --shadow-hover:0 10px 28px rgba(13,38,76,.14);
+    --radius:14px;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:'Segoe UI',Inter,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  body{font-family:'Segoe UI',Inter,Arial,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;}
   .app{display:flex;min-height:100vh;}
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:#C2D2DE;border-radius:20px;}
+  ::-webkit-scrollbar-thumb:hover{background:#A6BCCB;}
 
   /* Sidebar */
   .sidebar{
-    width:var(--sidebar-w); background:var(--navy); color:#fff;
+    width:var(--sidebar-w); background:linear-gradient(180deg,var(--navy) 0%,#001c38 100%); color:#fff;
     display:flex; flex-direction:column; align-items:center; padding:16px 0;
     position:fixed; top:0; bottom:0; left:0; z-index:10;
-    overflow-y:auto;
+    overflow-y:auto; box-shadow:2px 0 14px rgba(0,0,0,.18);
   }
   .sidebar .logo{
     background:var(--blue); color:#fff; font-size:10px; font-weight:700;
-    padding:8px 10px; border-radius:6px; margin-bottom:18px; letter-spacing:.5px;
+    padding:8px 10px; border-radius:7px; margin-bottom:18px; letter-spacing:.6px;
+    box-shadow:0 3px 10px rgba(13,131,198,.4);
   }
   .navitem{
     display:flex; flex-direction:column; align-items:center; gap:4px;
     padding:8px 0; width:100%; cursor:pointer; color:#9FB4C7; font-size:9.5px;
     border-left:3px solid transparent; margin-bottom:2px; user-select:none;
+    transition:color .15s ease, background .15s ease;
   }
+  .navitem:hover{ color:#fff; background:rgba(255,255,255,.06); }
   .navitem .circ{
     width:30px;height:30px;border-radius:50%; border:1.5px solid #3C5C77;
     display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;
+    transition:transform .15s ease, border-color .15s ease, background .15s ease;
   }
-  .navitem.active{ color:#fff; border-left-color:var(--blue); background:rgba(255,255,255,.05); }
-  .navitem.active .circ{ background:var(--blue); border-color:var(--blue); }
+  .navitem:hover .circ{ border-color:var(--blue); transform:translateY(-1px); }
+  .navitem.active{ color:#fff; border-left-color:var(--blue); background:rgba(255,255,255,.07); }
+  .navitem.active .circ{ background:var(--blue); border-color:var(--blue); box-shadow:0 0 0 4px rgba(13,131,198,.25); }
   .navitem.importbtn{ margin-top:auto; }
   .navitem.importbtn .circ{ border-color:var(--gold); }
-  .navitem.importbtn.active .circ{ background:var(--gold); border-color:var(--gold); }
+  .navitem.importbtn.active .circ{ background:var(--gold); border-color:var(--gold); box-shadow:0 0 0 4px rgba(222,186,8,.25); }
 
   /* Main */
   .main{ margin-left:var(--sidebar-w); flex:1; display:flex; flex-direction:column; }
   header{
     background:linear-gradient(120deg,var(--navy) 0%,var(--blue-dark) 55%,var(--teal-dark) 100%);
     color:#fff; padding:20px 32px; display:flex; justify-content:space-between; align-items:center;
-    flex-wrap:wrap; gap:14px;
+    flex-wrap:wrap; gap:14px; position:relative; z-index:5;
   }
-  header .title h1{ font-size:20px; font-weight:600; }
+  header .title h1{ font-size:20px; font-weight:700; letter-spacing:.2px; }
   header .title p{ font-size:12px; color:var(--cyan); margin-top:3px; }
   .headctrls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .pill{
-    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.2);
-    padding:6px 12px; border-radius:8px; font-size:11px; line-height:1.4;
+    background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.2);
+    padding:6px 12px; border-radius:9px; font-size:11px; line-height:1.4;
+    backdrop-filter:blur(2px);
   }
   .pill b{ display:block; font-size:12px; }
   .badge{
-    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25);
+    background:rgba(255,255,255,.13); border:1px solid rgba(255,255,255,.25);
     padding:5px 10px; border-radius:20px; font-size:10.5px; display:flex; align-items:center; gap:6px;
   }
-  .dot{width:7px;height:7px;border-radius:50%;background:#4CD37B;display:inline-block;}
-  .dot.imported{background:var(--gold);}
+  .dot{width:7px;height:7px;border-radius:50%;background:#4CD37B;display:inline-block;box-shadow:0 0 0 3px rgba(76,211,123,.25);}
+  .dot.imported{background:var(--gold);box-shadow:0 0 0 3px rgba(222,186,8,.25);}
 
   .content{ padding:24px 32px 50px; max-width:1500px; }
   .kpi-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; margin-bottom:22px; }
-  .kpi{ background:var(--card); border-radius:12px; padding:16px 18px; box-shadow:0 2px 10px rgba(13,70,111,.06); border-top:4px solid var(--blue); }
+  .kpi{
+    background:var(--card); border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow);
+    border-top:4px solid var(--blue); transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .kpi:hover{ transform:translateY(-2px); box-shadow:var(--shadow-hover); }
   .kpi.warn{border-top-color:var(--gold);} .kpi.danger{border-top-color:var(--danger);}
   .kpi.teal{border-top-color:var(--teal);} .kpi.navy{border-top-color:var(--navy);}
-  .kpi .label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); font-weight:700; margin-bottom:6px; }
-  .kpi .value{ font-size:22px; font-weight:700; color:var(--navy); }
+  .kpi .label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); font-weight:700; margin-bottom:6px; }
+  .kpi .value{ font-size:23px; font-weight:800; color:var(--navy); letter-spacing:-.2px; }
   .kpi .sub{ font-size:11px; color:var(--muted); margin-top:5px; }
 
   .grid{ display:grid; gap:16px; margin-bottom:16px; }
   .cols-2{ grid-template-columns:1.3fr 1fr; } .cols-3{ grid-template-columns:1fr 1fr 1fr; }
-  .card{ background:var(--card); border-radius:12px; padding:20px; box-shadow:0 2px 10px rgba(13,70,111,.06); }
+  .card{
+    background:var(--card); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow);
+    border:1px solid var(--border); transition:box-shadow .15s ease;
+  }
+  .card:hover{ box-shadow:var(--shadow-hover); }
   .card h3{ font-size:13.5px; color:var(--navy); font-weight:700; margin-bottom:3px; }
   .card .cs{ font-size:11px; color:var(--muted); margin-bottom:12px; }
   .chart-wrap{ position:relative; height:240px; }
@@ -87,9 +107,9 @@
   .barlist .row{ display:flex; align-items:center; gap:10px; font-size:11.5px; }
   .barlist .name{ width:110px; flex-shrink:0; color:var(--muted); }
   .barlist .track{ flex:1; background:#EEF2F5; border-radius:5px; height:9px; overflow:hidden; }
-  .barlist .fill{ height:100%; border-radius:5px; }
+  .barlist .fill{ height:100%; border-radius:5px; transition:width .35s ease; }
   .barlist .num{ width:55px; text-align:right; font-weight:700; color:var(--navy); }
-  .alertcard{ display:flex; justify-content:space-between; align-items:center; padding:11px 13px; border-radius:9px; margin-bottom:9px; font-size:12px; }
+  .alertcard{ display:flex; justify-content:space-between; align-items:center; padding:11px 13px; border-radius:10px; margin-bottom:9px; font-size:12px; }
   .alertcard b{ font-size:15px; color:var(--navy); }
   .textcard{ padding:9px 0 9px 12px; border-left:3px solid var(--blue); margin-bottom:12px; }
   .textcard b{ font-size:12px; color:var(--navy); display:block; margin-bottom:2px; }
@@ -100,14 +120,18 @@
   table.mini{ width:100%; border-collapse:collapse; font-size:11px; }
   table.mini th{ text-align:left; color:var(--muted); font-weight:700; padding:6px 8px; border-bottom:2px solid #EEF2F5; text-transform:uppercase; font-size:9.5px; }
   table.mini td{ padding:7px 8px; border-bottom:1px solid #F2F5F7; }
+  table.mini tbody tr{ transition:background .12s ease; }
+  table.mini tbody tr:hover{ background:#F7FAFC; }
   .tag{ padding:2px 8px; border-radius:10px; font-size:9.5px; font-weight:700; }
   .tag.ok{background:#DFF3EF;color:#0F6B5C;} .tag.no{background:#FBE4E1;color:var(--danger);} .tag.mid{background:#FDF3D6;color:#8A6D00;}
 
-  .page{ display:none; } .page.active{ display:block; }
+  .page{ display:none; } .page.active{ display:block; animation:fadeIn .18s ease; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(3px);} to{opacity:1; transform:translateY(0);} }
 
   /* Import panel */
   .import-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  .upload-slot{ border:2px dashed #C9D6DE; border-radius:12px; padding:18px; background:var(--card); }
+  .upload-slot{ border:2px dashed #C9D6DE; border-radius:var(--radius); padding:18px; background:var(--card); transition:border-color .15s ease; }
+  .upload-slot:hover{ border-color:var(--blue); }
   .upload-slot.done{ border-color:var(--teal); background:#F2FAF9; }
   .upload-slot h4{ font-size:12.5px; color:var(--navy); margin-bottom:3px; }
   .upload-slot p{ font-size:10.5px; color:var(--muted); margin-bottom:10px; }
@@ -115,10 +139,12 @@
   .upload-slot .status{ margin-top:8px; font-size:10.5px; font-weight:700; }
   .upload-slot .status.ok{ color:var(--teal-dark); } .upload-slot .status.err{ color:var(--danger); }
   button.primary{
-    background:var(--blue); color:#fff; border:none; padding:9px 18px; border-radius:8px;
-    font-size:12px; font-weight:700; cursor:pointer;
+    background:var(--blue); color:#fff; border:none; padding:9px 18px; border-radius:9px;
+    font-size:12px; font-weight:700; cursor:pointer; transition:background .15s ease, transform .1s ease;
+    box-shadow:0 3px 10px rgba(13,131,198,.3);
   }
-  button.primary:hover{ background:var(--blue-dark); }
+  button.primary:hover{ background:var(--blue-dark); transform:translateY(-1px); }
+  button.primary:active{ transform:translateY(0); }
 
   @media(max-width:1000px){ .cols-2,.cols-3,.import-grid{grid-template-columns:1fr;} }
   /* Login */
@@ -127,20 +153,23 @@
     display:flex; align-items:center; justify-content:center; z-index:1000;
   }
   #loginOverlay .box{
-    background:#fff; border-radius:14px; padding:32px 30px; width:320px; box-shadow:0 10px 40px rgba(0,0,0,.3);
+    background:#fff; border-radius:16px; padding:32px 30px; width:320px; box-shadow:0 20px 50px rgba(0,0,0,.35);
+    animation:fadeIn .2s ease;
   }
-  #loginOverlay h2{ color:var(--navy); font-size:18px; margin-bottom:4px; }
+  #loginOverlay h2{ color:var(--navy); font-size:19px; font-weight:700; margin-bottom:4px; }
   #loginOverlay p.sub{ color:var(--muted); font-size:12px; margin-bottom:18px; }
   #loginOverlay label{ font-size:11px; color:var(--muted); font-weight:700; display:block; margin-bottom:4px; margin-top:12px; }
   #loginOverlay input{
-    width:100%; padding:9px 10px; border:1.5px solid #C9D6DE; border-radius:8px; font-size:13px;
+    width:100%; padding:9px 10px; border:1.5px solid #C9D6DE; border-radius:9px; font-size:13px;
+    transition:border-color .15s ease;
   }
+  #loginOverlay input:focus{ outline:none; border-color:var(--blue); }
   #loginOverlay button{ width:100%; margin-top:20px; padding:10px; }
   #loginError{ color:var(--danger); font-size:11.5px; margin-top:10px; display:none; }
   .userpill{ display:flex; align-items:center; gap:8px; }
-  .userpill button{ background:transparent; border:1px solid rgba(255,255,255,.3); color:#fff; border-radius:6px; padding:5px 10px; font-size:11px; cursor:pointer; }
-  .userpill button:hover{ background:rgba(255,255,255,.1); }
-  .filtroselect{ background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.3); color:#fff; border-radius:6px; padding:3px 6px; font-size:11px; margin-top:3px; max-width:130px; }
+  .userpill button{ background:transparent; border:1px solid rgba(255,255,255,.3); color:#fff; border-radius:7px; padding:5px 10px; font-size:11px; cursor:pointer; transition:background .15s ease; }
+  .userpill button:hover{ background:rgba(255,255,255,.12); }
+  .filtroselect{ background:rgba(255,255,255,.13); border:1px solid rgba(255,255,255,.3); color:#fff; border-radius:7px; padding:3px 6px; font-size:11px; margin-top:3px; max-width:130px; }
   .filtroselect option{ color:#000; }
   .pill.filterpill span{ font-size:9px; text-transform:uppercase; letter-spacing:.3px; opacity:.85; }
   </style>
@@ -182,9 +211,7 @@
     <div class="navitem" data-page="corr"><div class="circ">C</div>Corr.</div>
     <div class="navitem" data-page="acid"><div class="circ">A</div>Acid.</div>
     <div class="navitem" data-page="desc"><div class="circ">D</div>Desc.</div>
-    <div class="navitem" data-page="tel"><div class="circ">T</div>Telem.</div>
     <div class="navitem" data-page="multas"><div class="circ">M</div>Multas</div>
-    <div class="navitem" data-page="telv"><div class="circ">V</div>Telem.Veíc.</div>
     <div class="navitem" data-page="km"><div class="circ">K</div>KM</div>
     <div class="navitem" data-page="indic"><div class="circ">I</div>Indic.</div>
     <div class="navitem" data-page="abast"><div class="circ">B</div>Abast.</div>
@@ -266,6 +293,9 @@
           <div class="kpi"><div class="label">Quantidade</div><div class="value" id="f_qtd">–</div><div class="sub">veículos na relação</div></div>
           <div class="kpi navy"><div class="label">Custo Mensal</div><div class="value" id="f_custoMensal">–</div><div class="sub">locação cadastrada</div></div>
           <div class="kpi teal"><div class="label">Custo Médio/Veículo</div><div class="value" id="f_custoMedio">–</div><div class="sub">média simples</div></div>
+          <div class="kpi navy"><div class="label">GTF</div><div class="value" id="f_qtdGtf">–</div><div class="sub">gestão de frota (contrato)</div></div>
+          <div class="kpi teal"><div class="label">RAC</div><div class="value" id="f_qtdRac">–</div><div class="sub">rent a car (provisório)</div></div>
+          <div class="kpi warn"><div class="label">Candidatos à Devolução</div><div class="value" id="f_qtdDevolucao">–</div><div class="sub" id="f_qtdDevolucaoPct">–</div></div>
         </div>
         <div class="grid cols-3">
           <div class="card"><h3>Quantidade por Obra</h3><div class="barlist" id="f_qtdPorObra"></div></div>
@@ -276,6 +306,12 @@
           <div class="card"><h3>Tempo Restante dos Contratos</h3><div class="cs">0m = vencido/sem saldo</div><div class="chart-wrap" id="f_tempoWrap"><canvas id="f_chartTempo"></canvas></div></div>
           <div class="card"><h3>Mix da Frota</h3><div class="chart-wrap" id="f_mixWrap"><canvas id="f_chartMix"></canvas></div></div>
           <div class="card"><h3>Telemetria / Rastreador</h3><div class="barlist" id="f_rastreador"></div></div>
+        </div>
+        <div class="grid cols-2">
+          <div class="card"><h3>GTF x RAC</h3><div class="cs">Classificação direta da base oficial</div><div class="chart-wrap" id="f_tipoContratoWrap"><canvas id="f_chartTipoContrato"></canvas></div></div>
+          <div class="card"><h3>Candidatos à Devolução</h3><div class="cs">Auditoria de frota — veículos com maior chance de devolução à locadora</div>
+            <table class="mini"><thead><tr><th>Placa</th><th>Modelo</th><th>Obra</th><th>Gasto Abast. (Jan-Out)</th></tr></thead><tbody id="f_devolucaoTabela"></tbody></table>
+          </div>
         </div>
       </div>
 
@@ -835,6 +871,15 @@ function renderFrota(){
   document.getElementById('f_qtd').textContent = fmtNum(f.total);
   document.getElementById('f_custoMensal').textContent = fmtMoneyShort(f.custoMensal);
   document.getElementById('f_custoMedio').textContent = fmtMoneyShort(f.custoMedio);
+  document.getElementById('f_qtdGtf').textContent = fmtNum(f.tipoContrato?.GTF||0);
+  document.getElementById('f_qtdRac').textContent = fmtNum(f.tipoContrato?.RAC||0);
+  document.getElementById('f_qtdDevolucao').textContent = fmtNum(f.qtdDevolucao||0);
+  document.getElementById('f_qtdDevolucaoPct').textContent = pct(f.qtdDevolucao||0, f.total)+'% da frota';
+  mkChart('f_chartTipoContrato', {type:'doughnut', data:{labels:['GTF','RAC'], datasets:[{data:[f.tipoContrato?.GTF||0, f.tipoContrato?.RAC||0], backgroundColor:[COLORS.navy,COLORS.gold], borderColor:'#fff', borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom'}}}});
+  document.getElementById('f_devolucaoTabela').innerHTML = (f.devolucaoCandidatos||[]).map(d => `
+    <tr><td>${d.plate}</td><td>${d.model||'–'}</td><td>${d.obra}</td><td>${fmtMoney(d.gasto)}</td></tr>
+  `).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Nenhum candidato identificado</td></tr>';
   barList(document.getElementById('f_qtdPorObra'), f.porObraQtd, {clickable:true, activeKey: window.__filtroObraAtivo, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
   barList(document.getElementById('f_custoPorObra'), f.porObraCusto, {money:true, clickable:true, activeKey: window.__filtroObraAtivo, onClick:(obra)=>window.aplicarFiltroObra && window.aplicarFiltroObra(obra)});
   barList(document.getElementById('f_locadoras'), f.locadoraTop);
@@ -1340,27 +1385,50 @@ renderAll();
     return XLSX.utils.sheet_to_json(ws, { defval: null });
   }
 
-  // ---------- Parsers com os nomes REAIS de coluna do BASE_CONSOLIDADA.xlsx ----------
+  // ---------- Parsers com os nomes REAIS de aba/coluna da base OFICIAL do cliente (Base_Frota_-_Utilities_consolidada.xlsx) ----------
 
   function parseFrota(rows){
-    return rows.map(r => ({
-      raw_plate: r['PLACA'],
-      plate: normPlate(r['PLACA']),
-      model: r['MODELO'],
-      renter: r['LOCADORA'],
-      fleet_type: mapFleetType(r['TIPO DE FROTA (LEVE, PESADO, FURGÃO OU UTILITÁRIO)']),
-      has_tracker: !!(r['RASTREADOR'] && String(r['RASTREADOR']).trim()),
-      tracker_provider: r['RASTREADOR'] ? String(r['RASTREADOR']).trim() : null,
-      monthly_cost: toNum(r['CUSTO DE LOCAÇÃO']),
-      contract_start: excelDateToISO(r['DATA DE ENTREGA']),
-      contract_end: excelDateToISO(r['FIM DO CONTRATO']),
-      cost_center_text: r['CENTRO DE CUSTO'],
-      obra_text: r['OBRA'],
-      driver_name: r['CONDUTOR (INFORMAR O NOME COMPLETO)'] || null,
-      driver_role: r['CARGO CONDUTOR'] || null,
-      segment: r['SEGMENTO (OPERACIONAL OU ADMNISTRATIVO'] || null,
-      raw_data: r,
-    })).filter(v => v.plate);
+    return rows.map(r => {
+      const tipoContratacao = String(r['TIPO DE CONTRATAÇÃO']||'').toUpperCase();
+      const rastr = r['RASTREADOR'] ? String(r['RASTREADOR']).trim() : '';
+      return {
+        raw_plate: r['PLACA'],
+        plate: normPlate(r['PLACA']),
+        model: r['MODELO'],
+        renter: r['LOCADORA'],
+        // Antes inferíamos RAC x GTF pelo nome da locadora; agora o cliente já manda essa classificação pronta.
+        contract_type: tipoContratacao.includes('RAC') ? 'RAC' : 'GTF',
+        fleet_type: mapFleetType(r['TIPO DE FROTA (LEVE, PESADO, FURGÃO OU UTILITÁRIO)']),
+        has_tracker: !!(rastr && rastr.toUpperCase() !== 'NÃO TEM' && rastr.toUpperCase() !== 'NAO TEM'),
+        tracker_provider: rastr || null,
+        monthly_cost: toNum(r['CUSTO DE LOCAÇÃO']),
+        contract_start: excelDateToISO(r['DATA DE ENTREGA']),
+        contract_end: excelDateToISO(r['FIM DO CONTRATO']),
+        cost_center_text: r['CENTRO DE CUSTO'],
+        obra_text: r['OBRA'],
+        driver_name: r['CONDUTOR (INFORMAR O NOME COMPLETO)'] || null,
+        driver_role: r['CARGO CONDUTOR'] || null,
+        raw_data: r,
+      };
+    }).filter(v => v.plate);
+  }
+
+  // NOVO: aba "Frota Auditoria" — candidatos a devolução e gasto de abastecimento auditado por placa.
+  // Faz merge em vehicles (não cria tabela nova): só atualiza os campos de auditoria.
+  function parseFrotaAuditoria(rows){
+    return rows.map(r => {
+      const chance = String(r['CHANCE DE DEVOLUÇÃO']||'').toUpperCase();
+      const obs = r['OBSERVAÇÃO'];
+      return {
+        raw_plate: r['PLACA'],
+        plate: normPlate(r['PLACA']),
+        devolution_chance: chance.includes('SIM') ? 'SIM' : chance.includes('ESTUDO') ? 'EM_ESTUDO' : (chance.includes('NÃO')||chance.includes('NAO')) ? 'NAO' : null,
+        audit_fuel_spend: toNum(r['TOTAL GASTO NOS ABASTCIMENTOS JAN A OUT']),
+        audit_segment: r['SEGMENTO (OPERACIONAL OU ADMNISTRATIVO'] || null,
+        audit_observation: (obs && String(obs).trim() !== '-') ? String(obs).trim() : null,
+        raw_data: r,
+      };
+    }).filter(v => v.plate);
   }
 
   function parseAcidentes(rows){
@@ -1369,7 +1437,7 @@ renderAll();
       return {
         raw_plate: r['PLACA'],
         occurrence_date: excelDateToISO(r['DATA DO ACIDENTE/SINISTRO']),
-        company_responsibility: resp.includes('EMPRESA'),
+        company_responsibility: resp.includes('EMPRESA') || resp.includes('CONCREJATO'),
         third_party_responsibility: resp.includes('TERCEIRO'),
         // avoidable / high_potential / has_victim / near_miss: a planilha não tem essas colunas hoje.
         // Ficam null (não inventamos) — se o cliente vier a preencher, é só mapear aqui depois.
@@ -1381,16 +1449,27 @@ renderAll();
   }
 
   function parseCorretivas(rows){
-    return rows.map(r => ({
-      raw_plate: r['PLACA'],
-      occurrence_date: excelDateToISO(r['DATA QUE O VEICULO PAROU']),
-      workshop: r['NOME DA OFICINA'],
-      service_description: r['MOTIVO MANUTENÇÃO (PEÇA)'],
-      cost: toNum(r['VALOR MANUTENÇÃO']),
-      days_stopped: toNum(r['DIAS PARADO (CALCULADO)']),
-      has_evidence: toBool(r['TEM EVIDENCIA DA MANUTENÇÃO']),
-      raw_data: r,
-    })).filter(v => v.raw_plate);
+    return rows.map(r => {
+      // A base nova não traz mais "DIAS PARADO" calculado — recalculamos pela diferença
+      // entre a data que o veículo parou e a data de liberação (quando ambas existem).
+      const dtParou = excelDateToISO(r['DATA QUE O VEICULO PAROU']);
+      const dtLiberou = excelDateToISO(r['DATA LIBERAÇÃO DO VEICULO']);
+      let diasParado = null;
+      if (dtParou && dtLiberou) {
+        const diff = (new Date(dtLiberou) - new Date(dtParou)) / 86400000;
+        diasParado = diff >= 0 ? Math.round(diff) : null;
+      }
+      return {
+        raw_plate: r['PLACA'],
+        occurrence_date: dtParou,
+        workshop: r['NOME DA OFICINA'],
+        service_description: r['MOTIVO MANUTENÇÃO (PEÇA)'],
+        cost: toNum(r['VALOR MANUTENÇÃO']),
+        days_stopped: diasParado,
+        has_evidence: toBool(r['TEM EVIDENCIA DA MANUTENÇÃO']),
+        raw_data: r,
+      };
+    }).filter(v => v.raw_plate);
   }
 
   function parsePreventivasVeiculos(rows){
@@ -1411,7 +1490,7 @@ renderAll();
     const out = [];
     for (const r of rows){
       const plate = r['PLACA'];
-      const franquia = toNum(r['KM CONTRATO COM LOCADORA']);
+      const franquia = toNum(r['KM CONTRATO COM LOCADORA']); // a base nova não tem franquia; fica null
       Object.keys(r).forEach(k => {
         const m = k.toUpperCase().match(/^KM RODADO\s+([A-ZÇÃÕÁÉÍÓÚ]+)$/);
         if (m && r[k] !== null && r[k] !== '') {
@@ -1446,33 +1525,52 @@ renderAll();
     return 'POTENCIAL_OCIOSIDADE';
   }
 
-  // ---------- MULTAS (real), ABASTECIMENTO e TELEMETRIA_VEICULO (novas fontes reais) ----------
+  // ---------- MULTAS (aba "Gestão de Multas", agora com 46 colunas) e ABASTECIMENTOS ----------
   function parseMultasReal(rows){
-    return rows.map(r => ({
-      raw_plate: r['Placa'],
-      driver_name: r['Condutor'] || null,
-      infraction_code: r['Código do Enquadramento'] != null ? String(r['Código do Enquadramento']) : null,
-      infraction_description: r['Descrição do Enquadramento'],
-      infraction_date: excelDateToISO(r['Data da Infração']),
-      points: toNum(r['Pontos']),
-      amount: toNum(r['Valor da Infração']),
-      status: r['Controle da Multa'] || null,
-      raw_data: r,
-    })).filter(v => v.raw_plate);
+    return rows.map(r => {
+      const prazo = r['Prazo de Identificação do Condutor / Defesa Prévia'];
+      return {
+        raw_plate: r['Placa'],
+        driver_name: r['Condutor'] || null,
+        infraction_code: r['Código do Enquadramento'] != null ? String(r['Código do Enquadramento']) : null,
+        infraction_description: r['Descrição do Enquadramento'],
+        infraction_date: excelDateToISO(r['Data da Infração']),
+        points: toNum(r['Pontos']),
+        amount: toNum(r['Valor da Infração']),
+        status: r['Controle da Multa'] || null,
+        // Campos novos — a aba antiga de Multas não tinha nenhum destes:
+        severity: r['Gravidade'] || null,
+        article_ctb: r['Artigo CTB'] || null,
+        issuing_agency: r['Descrição do Órgão Autuador'] || null,
+        uf: r['UF'] || null,
+        city: r['Cidade'] || null,
+        address: r['Endereço'] || null,
+        deadline_date: excelDateToISO(prazo),
+        driver_identification_status: r['Status Identificação condutor'] || null,
+        manager_name: r['Gestor'] || null,
+        manager_email: r['Gestor Email'] || null,
+        responsible_party: r['Responsável pela Multa'] || null,
+        nic_value: toNum(r['Valor NIC']),
+        raw_data: r,
+      };
+    }).filter(v => v.raw_plate);
   }
 
   function parseAbastecimento(rows){
     return rows.map(r => {
       const litros = toNum(r['LITROS']);
       const preco = toNum(r['VL/LITRO']);
+      const valorEmissao = toNum(r['VALOR EMISSAO']);
       return {
         raw_plate: r['PLACA'],
-        transaction_date: excelDateToISO(r['DATA']),
+        transaction_date: excelDateToISO(r['DATA TRANSACAO']),
         service_type: r['SERVICO'] || null,
         fuel_type: r['TIPO COMBUSTIVEL'] || null,
         liters: litros,
         price_per_liter: preco,
-        total_value: (litros != null && preco != null) ? +(litros * preco).toFixed(2) : null,
+        // VALOR EMISSAO é o valor real cobrado (pode diferir de litros×preço por desconto/negociação);
+        // usamos ele quando existe e só calculamos como fallback.
+        total_value: valorEmissao != null ? valorEmissao : ((litros != null && preco != null) ? +(litros * preco).toFixed(2) : null),
         driver_name: r['NOME MOTORISTA'] || null,
         odometer: toNum(r['HODOMETRO OU HORIMETRO']),
         payment_method: r['FORMA DE PAGAMENTO'] || null,
@@ -1481,64 +1579,12 @@ renderAll();
     }).filter(v => v.raw_plate);
   }
 
-  function parseTelemetriaVeiculo(rows){
-    return rows.map(r => ({
-      raw_plate: r['PLACA'],
-      reference_month: mesParaData(r['MES']),
-      km_rodado: toNum(r['KM_RODADO']),
-      fuel_liters: toNum(r['COMBUSTIVEL_LITROS']),
-      fuel_cost: toNum(r['CUSTO_COMBUSTIVEL']),
-      pct_parado: toNum(r['PARADO_PCT']),
-      pct_parado_ligado: toNum(r['PARADO_LIGADO_PCT']),
-      pct_em_movimento: toNum(r['EM_MOVIMENTO_PCT']),
-      velocidade_media: toNum(r['VELOCIDADE_MEDIA']),
-      velocidade_maxima: toNum(r['VELOCIDADE_MAXIMA']),
-      hard_acceleration_count: Math.round(toNum(r['ACELERACAO_GRAVE']) || toNum(r['EVENTOS_ACELERACAO_BRUSCA']) || 0),
-      hard_braking_count: Math.round(toNum(r['FRENAGEM_GRAVE']) || toNum(r['EVENTOS_FRENAGEM_BRUSCA']) || 0),
-      hard_cornering_count: Math.round(toNum(r['CURVA_GRAVE']) || toNum(r['EVENTOS_CURVA_BRUSCA']) || 0),
-      speeding_count: Math.round(toNum(r['EXCESSO_VELOCIDADE']) || toNum(r['EVENTOS_VELOCIDADE_VIA']) || 0),
-      raw_data: r,
-    })).filter(v => v.raw_plate && v.reference_month);
-  }
-
-  // COMPORTAMENTAL e MULTAS (formato antigo) não têm PLACA — mantidos só por compatibilidade, não usados na base nova.
-  function parseComportamentalSheet(rows){
-    return (rows||[]).map(r => ({
-      raw_plate: null,
-      driver_name: r['CONDUTOR'],
-      reference_month_raw: r['PERIODO'],
-      hard_braking_count: Math.round(toNum(r['FRENAGEM_BRUSCA']) || 0),
-      hard_acceleration_count: Math.round(toNum(r['ACELERACAO_BRUSCA']) || 0),
-      hard_cornering_count: Math.round(toNum(r['CURVA_BRUSCA']) || 0),
-      speeding_count: Math.round((toNum(r['INFRACAO_MEDIA'])||0) + (toNum(r['INFRACAO_GRAVE'])||0) + (toNum(r['INFRACAO_GRAVISSIMA'])||0)),
-      score: toNum(r['TOTAL_PONTOS']),
-      exposure_class: r['CLASSIFICACAO'],
-      source_sheet: 'COMPORTAMENTAL',
-      raw_data: r,
-    }));
-  }
-  function parseMultasSheet(rows){
-    return (rows||[]).map(r => ({
-      raw_plate: null,
-      driver_name: r['Motorista'],
-      reference_month_raw: r['Período'],
-      hard_braking_count: Math.round(toNum(r['TOTAL FRENAGEM']) || 0),
-      hard_acceleration_count: Math.round(toNum(r['TOTAL ACELERAÇÃO']) || 0),
-      hard_cornering_count: Math.round(toNum(r['TOTAL CURVA']) || 0),
-      speeding_count: 0,
-      score: toNum(r['PONTUAÇÃO CONDUTOR']),
-      exposure_class: r['CLASSIFICAÇÃO CONDUTOR'],
-      source_sheet: 'MULTAS',
-      raw_data: r,
-    }));
-  }
-
   function parseDescontos(rows){
     return rows.map(r => ({
       employee_name: r['NOME COMPLETO'],
       raw_plate: null, // esta aba não tem PLACA
       occurrence_description: r['DESCRIÇÃO DO OCORRIDO'],
-      occurrence_date: null, // só existe "MÊS COMPETÊNCIA" como texto, sem dia — fica em raw_data
+      occurrence_date: excelDateToISO(r['MÊS COMPETENCIA']), // agora vem como data real (sempre dia 1 do mês)
       amount: toNum(r['VALOR DO DESCONTO']),
       funnel_stage: String(r['ENVIADO AO RH']||'').toUpperCase()==='SIM' ? 'ENVIADO_RH' : 'IDENTIFICADO',
       raw_data: r,
@@ -1570,15 +1616,18 @@ renderAll();
         });
       }
 
-      registrar('FROTA', sheetRows(wb,'FROTA'), parseFrota);
-      registrar('ACIDENTES', sheetRows(wb,'ACIDENTES'), parseAcidentes);
-      registrar('CORRETIVAS', sheetRows(wb,'CORRETIVAS'), parseCorretivas);
-      registrar('PREVENTIVAS_VEICULOS', sheetRows(wb,'PREVENTIVAS_VEICULOS'), parsePreventivasVeiculos);
-      registrar('QUILOMETRAGEM', sheetRows(wb,'QUILOMETRAGEM'), parseQuilometragem);
-      registrar('DESCONTOS', sheetRows(wb,'DESCONTOS'), parseDescontos);
-      registrar('MULTAS', sheetRows(wb,'MULTAS'), parseMultasReal);
-      registrar('ABASTECIMENTO', sheetRows(wb,'ABASTECIMENTO'), parseAbastecimento);
-      registrar('TELEMETRIA_VEICULO', sheetRows(wb,'TELEMETRIA_VEICULO'), parseTelemetriaVeiculo);
+      // Nomes de aba da base OFICIAL do cliente (Base_Frota_-_Utilities_consolidada.xlsx)
+      registrar('FROTA', sheetRows(wb,'Frota'), parseFrota);
+      registrar('FROTA_AUDITORIA', sheetRows(wb,'Frota Auditoria'), parseFrotaAuditoria);
+      registrar('ACIDENTES', sheetRows(wb,'Acidentes'), parseAcidentes);
+      registrar('CORRETIVAS', sheetRows(wb,'Corretivas'), parseCorretivas);
+      registrar('PREVENTIVAS_VEICULOS', sheetRows(wb,'Preventivas Veiculos'), parsePreventivasVeiculos);
+      registrar('QUILOMETRAGEM', sheetRows(wb,'Quilometragem'), parseQuilometragem);
+      registrar('DESCONTOS', sheetRows(wb,'Descontos'), parseDescontos);
+      registrar('MULTAS', sheetRows(wb,'Gestão de Multas'), parseMultasReal);
+      registrar('ABASTECIMENTO', sheetRows(wb,'Abastecimentos'), parseAbastecimento);
+      // Telemetria (Mobi7/Telemetria_contratos) saiu da base oficial — cliente confirmou que pode remover.
+      // Código de telemetria por condutor/veículo continua no app, só não recebe mais dados novos por aqui.
 
       ultimoArquivo = { fileName: file.name, fileHash: hash, fileSizeBytes: file.size };
       ultimosModulos = modules;
@@ -1915,7 +1964,7 @@ renderAll();
   };
 
   async function carregarDadosFrota(){
-    let q = sb.from('vehicles').select('vehicle_id,plate,fleet_type,renter,monthly_cost,tracker_provider,contract_end,work_id,cost_center_id,last_import_batch_id,works(name)');
+    let q = sb.from('vehicles').select('vehicle_id,plate,model,fleet_type,renter,monthly_cost,tracker_provider,contract_end,work_id,cost_center_id,last_import_batch_id,contract_type,devolution_chance,audit_fuel_spend,works(name)');
     q = aplicarBatch(q, 'last_import_batch_id');
     if (filtro.companyId) q = q.eq('company_id', filtro.companyId);
     if (filtro.workId) q = q.eq('work_id', filtro.workId);
@@ -1932,6 +1981,9 @@ renderAll();
     const custoMedio = total ? custoMensal/total : 0;
     const porObraQtd = {}, porObraCusto = {}, locadoraTop = {}, rastreador = {};
     const tempoBucket = {'0m':0,'1-3m':0,'4-6m':0,'7-12m':0,'13-18m':0,'19-24m':0,'25m+':0};
+    const tipoContrato = { GTF:0, RAC:0 };
+    let qtdDevolucao = 0;
+    const devolucaoCandidatos = [];
 
     vehicles.forEach(v=>{
       const obraNome = v.works?.name || '(sem obra)';
@@ -1942,7 +1994,13 @@ renderAll();
       const rast = v.tracker_provider || 'Sem rastreador';
       rastreador[rast] = (rastreador[rast]||0)+1;
       tempoBucket[bucketTempo(mesesRestantes(v.contract_end))]++;
+      if (v.contract_type === 'RAC') tipoContrato.RAC++; else tipoContrato.GTF++;
+      if (v.devolution_chance === 'SIM') {
+        qtdDevolucao++;
+        devolucaoCandidatos.push({ plate: v.plate, model: v.model, obra: obraNome, gasto: Number(v.audit_fuel_spend)||0 });
+      }
     });
+    devolucaoCandidatos.sort((a,b)=>b.gasto-a.gasto);
 
     AGG.frota = {
       total, custoMensal, custoMedio,
@@ -1950,6 +2008,7 @@ renderAll();
       locadoraTop: topN(locadoraTop,8), tempoRestanteBucket: tempoBucket,
       mixTipo: topN(mixTipoTotal,10), rastreador: topN(rastreador,8),
       filtroTipo: filtroTipoFrota,
+      tipoContrato, qtdDevolucao, devolucaoCandidatos: devolucaoCandidatos.slice(0,15),
     };
   }
 
