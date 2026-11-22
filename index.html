@@ -414,9 +414,13 @@
           <div class="kpi-grid">
             <div class="kpi"><div class="label">Multas</div><div class="value" id="m_total">–</div></div>
             <div class="kpi teal"><div class="label">Valor Total</div><div class="value" id="m_valor">–</div></div>
+            <div class="kpi danger"><div class="label">Vencidas</div><div class="value" id="m_vencidas">–</div></div>
           </div>
           <div class="grid cols-2">
-            <div class="card"><h3>Por Mês</h3><div class="chart-wrap" id="m_mesWrap"><canvas id="m_chartMes"></canvas></div></div>
+            <div class="card"><h3>Por Mês</h3><div class="cs">Quantidade</div><div class="chart-wrap" id="m_mesWrap"><canvas id="m_chartMes"></canvas></div></div>
+            <div class="card"><h3>Por Mês (Valor)</h3><div class="cs">R$</div><div class="chart-wrap" id="m_mesValorWrap"><canvas id="m_chartMesValor"></canvas></div></div>
+          </div>
+          <div class="grid cols-2">
             <div class="card"><h3>Por Obra / Categoria</h3><div class="barlist" id="m_porObra"></div></div>
           </div>
         </div>
@@ -883,8 +887,9 @@ function renderVisao(){
   mkChart('v_chartCustoMensal', {type:'line', data:{labels:mesesCorr.map(mm=>MESES_ABREV[mm-1]), datasets:[{data:mesesCorr.map(mm=>c.custoPorMes[mm]), borderColor:COLORS.navy, backgroundColor:COLORS.navy, tension:.3}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
 
-  const mesesLabels = m ? Object.keys(m.porMes) : [];
-  const mesesData = m ? Object.values(m.porMes) : [];
+  const mesesChavesM = m ? Object.keys(m.porMes||{}).sort() : [];
+  const mesesLabels = mesesChavesM.map(mesLabel);
+  const mesesData = mesesChavesM.map(k=>m.porMes[k]);
   document.getElementById('v_multasMesWrap').innerHTML = m ? '<canvas id="v_chartMultasMes"></canvas>' : '<div class="placeholder" style="padding:20px"><b>Sem dados de multas</b>Importe a planilha correspondente.</div>';
   if(m) mkChart('v_chartMultasMes', {type:'line', data:{labels:mesesLabels, datasets:[{data:mesesData, borderColor:COLORS.blue, backgroundColor:COLORS.blue, tension:.3}]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
 }
@@ -1034,9 +1039,18 @@ function renderMultas(){
   if(!m) return;
   document.getElementById('m_total').textContent = fmtNum(m.total);
   document.getElementById('m_valor').textContent = fmtMoney(m.valor);
+  document.getElementById('m_vencidas').textContent = fmtNum(m.vencidas);
   barList(document.getElementById('m_porObra'), m.porCategoria||{});
-  mkChart('m_chartMes', {type:'bar', data:{labels:Object.keys(m.porMes), datasets:[{data:Object.values(m.porMes), backgroundColor:COLORS.blue, borderRadius:5}]},
+  // As chaves de porMes/porMesValor vêm como data (ex.: "2026-03-01"), não só o número do mês,
+  // pra não misturar o mesmo mês de anos diferentes — por isso passam por mesLabel() (igual KM/Abastecimento).
+  const mesesChaves = Object.keys(m.porMes||{}).sort();
+  const mesesLabels = mesesChaves.map(mesLabel);
+  mkChart('m_chartMes', {type:'bar', data:{labels:mesesLabels, datasets:[{data:mesesChaves.map(k=>m.porMes[k]), backgroundColor:COLORS.blue, borderRadius:5}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+  const mesesChavesValor = Object.keys(m.porMesValor||{}).sort();
+  const mesesLabelsValor = mesesChavesValor.map(mesLabel);
+  mkChart('m_chartMesValor', {type:'bar', data:{labels:mesesLabelsValor, datasets:[{data:mesesChavesValor.map(k=>m.porMesValor[k]), backgroundColor:COLORS.gold, borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:(ctx)=>fmtMoney(ctx.parsed.y)}}},scales:{y:{ticks:{callback:(v)=>fmtMoneyShort(v)}}}}});
 }
 function renderAbast(){
   const b=AGG.abastecimento;
@@ -2489,6 +2503,7 @@ renderAll();
         total: Number(m.total)||0,
         valor: Number(m.valor)||0,
         porMes: m.porMes || {},
+        porMesValor: m.porMesValor || {},
         porCategoria: topN(m.porCategoria || {}, 8),
         vencidas: Number(m.vencidas)||0
       };
