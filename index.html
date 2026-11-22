@@ -1925,6 +1925,8 @@ renderAll();
     // Sempre mostra o ano junto (ex.: "Jan/25") — pedido do cliente pra não confundir Jan/2025 com Jan/2026.
     return MESES_NOMES[d.getUTCMonth()] + '/' + String(d.getUTCFullYear()).slice(-2);
   }
+  // Exposta em window: a Visão Executiva (outro bloco <script>, fora desta IIFE) também usa mesLabel.
+  window.mesLabel = mesLabel;
   function mesNumero(dataStr){ if(!dataStr) return null; return new Date(dataStr).getUTCMonth()+1; }
   function scopeFilterEmbedded(q){
     if (filtro.companyId) q = q.eq('vehicles.company_id', filtro.companyId);
