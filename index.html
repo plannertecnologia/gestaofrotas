@@ -319,7 +319,7 @@
           <div class="kpi teal"><div class="label">Custo Médio/Veículo</div><div class="value" id="f_custoMedio">–</div><div class="sub">média simples</div></div>
           <div class="kpi navy"><div class="label">GTF</div><div class="value" id="f_qtdGtf">–</div><div class="sub">gestão de frota (contrato)</div></div>
           <div class="kpi teal"><div class="label">RAC</div><div class="value" id="f_qtdRac">–</div><div class="sub">rent a car (provisório)</div></div>
-          <div class="kpi warn"><div class="label">Candidatos à Devolução</div><div class="value" id="f_qtdDevolucao">–</div><div class="sub" id="f_qtdDevolucaoPct">–</div></div>
+          <div class="kpi warn" style="display:none;"><div class="label">Candidatos à Devolução</div><div class="value" id="f_qtdDevolucao">–</div><div class="sub" id="f_qtdDevolucaoPct">–</div></div>
         </div>
         <div class="grid cols-3">
           <div class="card"><h3>Quantidade por Obra</h3><div class="barlist" id="f_qtdPorObra"></div></div>
@@ -331,8 +331,10 @@
           <div class="card"><h3>Mix da Frota</h3><div class="chart-wrap" id="f_mixWrap"><canvas id="f_chartMix"></canvas></div></div>
           <div class="card"><h3>Telemetria / Rastreador</h3><div class="barlist" id="f_rastreador"></div></div>
         </div>
-        <div class="grid cols-2">
+        <div class="grid cols-2" style="grid-template-columns:1fr;">
           <div class="card"><h3>GTF x RAC</h3><div class="cs">Classificação direta da base oficial</div><div class="chart-wrap" id="f_tipoContratoWrap"><canvas id="f_chartTipoContrato"></canvas></div></div>
+        </div>
+        <div class="grid cols-2" style="display:none;">
           <div class="card"><h3>Candidatos à Devolução</h3><div class="cs">Auditoria de frota — veículos com maior chance de devolução à locadora</div>
             <table class="mini"><thead><tr><th>Placa</th><th>Modelo</th><th>Obra</th><th>Gasto Abast. (Jan-Out)</th></tr></thead><tbody id="f_devolucaoTabela"></tbody></table>
           </div>
@@ -401,6 +403,11 @@
           <div class="card"><h3>Tipos de Sinistro</h3><div class="barlist" id="a_tipoSinistro"></div></div>
           <div class="card"><h3>Frota Utilities Ciente?</h3><div class="chart-wrap" id="a_cienteWrap"><canvas id="a_chartCiente"></canvas></div></div>
         </div>
+        <div class="grid cols-2">
+          <div class="card"><h3>Responsável pelo Acidente/Sinistro</h3><div class="cs">Quem responde pelo sinistro e o custo associado</div>
+            <table class="mini"><thead><tr><th>Responsável</th><th>Ocorrências</th><th>Custo</th></tr></thead><tbody id="a_tabelaResponsavel"></tbody></table>
+          </div>
+        </div>
       </div>
 
       <!-- MULTAS (genérico, aguarda import) -->
@@ -415,6 +422,7 @@
             <div class="kpi"><div class="label">Multas</div><div class="value" id="m_total">–</div></div>
             <div class="kpi teal"><div class="label">Valor Total</div><div class="value" id="m_valor">–</div></div>
             <div class="kpi danger"><div class="label">Vencidas</div><div class="value" id="m_vencidas">–</div></div>
+            <div class="kpi warn"><div class="label">Valor NIC</div><div class="value" id="m_nicValor">–</div><div class="sub" id="m_nicQtd">–</div></div>
           </div>
           <div class="grid cols-2">
             <div class="card"><h3>Por Mês</h3><div class="cs">Quantidade</div><div class="chart-wrap" id="m_mesWrap"><canvas id="m_chartMes"></canvas></div></div>
@@ -422,6 +430,20 @@
           </div>
           <div class="grid cols-2">
             <div class="card"><h3>Por Obra / Categoria</h3><div class="barlist" id="m_porObra"></div></div>
+            <div class="card"><h3>Gravidade da Multa</h3><div class="cs">Leve, média, grave, gravíssima ou remulta</div><div class="chart-wrap" id="m_gravidadeWrap"><canvas id="m_chartGravidade"></canvas></div></div>
+          </div>
+          <div class="grid cols-2">
+            <div class="card"><h3>Status do Termo de Desconto</h3><div class="barlist" id="m_termoDesconto"></div></div>
+            <div class="card"><h3>Descrição do Enquadramento</h3><div class="cs">Top 15 por quantidade</div>
+              <div style="max-height:280px; overflow-y:auto;">
+                <table class="mini"><thead><tr><th>Enquadramento</th><th>Qtd.</th><th>Valor</th></tr></thead><tbody id="m_tabelaEnquadramento"></tbody></table>
+              </div>
+            </div>
+          </div>
+          <div class="grid cols-2" style="grid-template-columns:1fr;">
+            <div class="card"><h3>Controle Despachante</h3><div class="cs">Coluna "Controle da Multa" — situação de cada multa no despachante</div>
+              <table class="mini"><thead><tr><th>Controle</th><th>Qtd.</th><th>Valor</th></tr></thead><tbody id="m_tabelaControle"></tbody></table>
+            </div>
           </div>
         </div>
       </div>
@@ -497,6 +519,12 @@
           <div class="grid cols-2">
             <div class="card"><h3>Custo por Mês</h3><div class="chart-wrap" id="b_mesWrap"><canvas id="b_chartMes"></canvas></div></div>
             <div class="card"><h3>Custo por Obra</h3><div class="barlist" id="b_porObra"></div></div>
+          </div>
+          <div class="grid cols-2">
+            <div class="card"><h3>Abastecimentos por Forma de Pagamento</h3><div class="cs">Quantidade, valor e litros por forma de pagamento (ex.: TAG, cartão físico)</div><div class="chart-wrap" id="b_formaPagWrap"><canvas id="b_chartFormaPag"></canvas></div></div>
+            <div class="card"><h3>Detalhe por Forma de Pagamento</h3>
+              <table class="mini"><thead><tr><th>Forma</th><th>Qtd.</th><th>Litros</th><th>Valor</th></tr></thead><tbody id="b_tabelaFormaPag"></tbody></table>
+            </div>
           </div>
         </div>
       </div>
@@ -718,13 +746,33 @@ Chart.defaults.color = COLORS.muted;
 Chart.defaults.font.size = 11;
 if (typeof ChartDataLabels !== 'undefined') {
   Chart.register(ChartDataLabels);
+  // pitaco do Vanderson: em barra/linha o número ficava DENTRO (em cima da cor/da linha),
+  // o que sumia em fundo escuro — agora o rótulo fica ACIMA/FORA do elemento, sobre o
+  // fundo claro do card, sempre com a mesma cor escura (legível em qualquer cor de barra).
   Chart.defaults.set('plugins.datalabels', {
-    color: '#00264C', font: { weight: '700', size: 10 },
+    color: COLORS.navy, font: { weight: '700', size: 10 },
+    anchor: 'end', align: 'top', offset: 4, clamp: true,
     formatter: (value) => {
       if (value === 0 || value === null || value === undefined) return '';
       return Number(value).toLocaleString('pt-BR');
     },
   });
+  // Em rosca/pizza o rótulo fica dentro da própria fatia — usa branco com contorno escuro
+  // pra continuar legível em fatias claras OU escuras (era o que ficava ilegível antes).
+  Chart.overrides.doughnut = Chart.overrides.doughnut || {};
+  Chart.overrides.doughnut.plugins = Chart.overrides.doughnut.plugins || {};
+  Chart.overrides.doughnut.plugins.datalabels = {
+    color: '#fff', anchor: 'center', align: 'center', offset: 0, clamp: false,
+    textStrokeColor: 'rgba(0,0,0,.45)', textStrokeWidth: 2.5,
+    font: { weight: '700', size: 10.5 },
+    formatter: (value, ctx) => {
+      const vals = ctx.chart.data.datasets[ctx.datasetIndex].data;
+      const total = vals.reduce((s,v)=>s+(Number(v)||0),0);
+      if (!value || !total) return '';
+      const p = Math.round(1000*value/total)/10;
+      return p < 4 ? '' : p+'%';
+    }
+  };
 }
 const CHARTS = {}; // registry to destroy/recreate
 
@@ -988,6 +1036,10 @@ function renderAcid(){
   mkChart('a_chartCiente', {type:'doughnut', data:{labels:cienteLabels, datasets:[{data:Object.values(a.frotaCiente), backgroundColor:aplicarDestaquePorIndice(cienteLabels.map((l,i)=>[COLORS.teal,COLORS.danger,COLORS.muted][i%3]), idxCienteAtivo), borderColor:'#fff', borderWidth:3}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom'}},
       onClick:(evt,els)=>{ if(els.length && window.aplicarFiltroCienteAcid) window.aplicarFiltroCienteAcid(cienteLabels[els[0].index]); }}});
+  const respRows = Object.entries(a.porResponsavel||{}).sort((x,y)=>y[1].custo-x[1].custo);
+  document.getElementById('a_tabelaResponsavel').innerHTML = respRows.map(([nome,r])=>
+    `<tr><td>${nome}</td><td>${fmtNum(r.qtd)}</td><td>${fmtMoney(r.custo)}</td></tr>`
+  ).join('');
 }
 
 /* ========================= RENDER: DESCONTOS ========================= */
@@ -1040,7 +1092,22 @@ function renderMultas(){
   document.getElementById('m_total').textContent = fmtNum(m.total);
   document.getElementById('m_valor').textContent = fmtMoney(m.valor);
   document.getElementById('m_vencidas').textContent = fmtNum(m.vencidas);
+  document.getElementById('m_nicValor').textContent = fmtMoney(m.nic?.valor||0);
+  document.getElementById('m_nicQtd').textContent = fmtNum(m.nic?.qtd||0)+' multa(s) com condutor não identificado (valor triplicado)';
   barList(document.getElementById('m_porObra'), m.porCategoria||{});
+  barList(document.getElementById('m_termoDesconto'), Object.fromEntries(Object.entries(m.porTermoDesconto||{})));
+  document.getElementById('m_tabelaEnquadramento').innerHTML = (m.enquadramento||[]).map(e =>
+    `<tr><td>${e.descricao}</td><td>${fmtNum(e.qtd)}</td><td>${fmtMoney(e.valor)}</td></tr>`
+  ).join('');
+  const controleRows = Object.entries(m.controleDespachante||{}).sort((x,y)=>y[1].qtd-x[1].qtd);
+  document.getElementById('m_tabelaControle').innerHTML = controleRows.map(([nome,r])=>
+    `<tr><td>${nome}</td><td>${fmtNum(r.qtd)}</td><td>${fmtMoney(r.valor)}</td></tr>`
+  ).join('');
+  const gravOrdem = ['LEVE','MÉDIA','GRAVE','GRAVÍSSIMA','REMULTA'];
+  const gravCores = { LEVE:COLORS.teal, 'MÉDIA':COLORS.gold, GRAVE:'#E8773D', GRAVÍSSIMA:COLORS.danger, REMULTA:COLORS.muted };
+  const gravLabels = gravOrdem.filter(g => m.porGravidade?.[g]);
+  mkChart('m_chartGravidade', {type:'doughnut', data:{labels:gravLabels, datasets:[{data:gravLabels.map(g=>m.porGravidade[g].qtd), backgroundColor:gravLabels.map(g=>gravCores[g]||COLORS.muted), borderColor:'#fff', borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9.5}}},tooltip:{callbacks:{label:(ctx)=>{ const g=gravLabels[ctx.dataIndex]; return `${g}: ${fmtNum(m.porGravidade[g].qtd)} (${fmtMoney(m.porGravidade[g].valor)})`; }}}}}});
   // As chaves de porMes/porMesValor vêm como data (ex.: "2026-03-01"), não só o número do mês,
   // pra não misturar o mesmo mês de anos diferentes — por isso passam por mesLabel() (igual KM/Abastecimento).
   const mesesChaves = Object.keys(m.porMes||{}).sort();
@@ -1063,6 +1130,15 @@ function renderAbast(){
   barList(document.getElementById('b_porObra'), b.porObra||{}, {money:true});
   mkChart('b_chartMes', {type:'bar', data:{labels:Object.keys(b.porMes), datasets:[{data:Object.values(b.porMes), backgroundColor:COLORS.navy, borderRadius:5}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+  const formaPagLabels = Object.keys(b.porFormaPagamento||{});
+  // Mesma paleta azul do gráfico de forma de pagamento do BI do cliente (TAG/CORINGA em tons de azul).
+  const formaPagCores = [COLORS.blueDark, COLORS.blue, COLORS.cyan, COLORS.teal, COLORS.gold, COLORS.danger];
+  mkChart('b_chartFormaPag', {type:'doughnut', data:{labels:formaPagLabels, datasets:[{data:formaPagLabels.map(f=>b.porFormaPagamento[f].qtd), backgroundColor:formaPagLabels.map((f,i)=>formaPagCores[i%formaPagCores.length]), borderColor:'#fff', borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:(ctx)=>{ const f=formaPagLabels[ctx.dataIndex]; const r=b.porFormaPagamento[f]; return `${f}: ${fmtNum(r.qtd)} (${fmtMoney(r.valor)})`; }}}}}});
+  document.getElementById('b_tabelaFormaPag').innerHTML = formaPagLabels.map(f=>{
+    const r = b.porFormaPagamento[f];
+    return `<tr><td>${f}</td><td>${fmtNum(r.qtd)}</td><td>${fmtNum(r.litros)} L</td><td>${fmtMoney(r.valor)}</td></tr>`;
+  }).join('');
 }
 
 /* ========================= RENDER: GOVERNANÇA ========================= */
@@ -2287,6 +2363,9 @@ renderAll();
     const total = data.length;
     const custoTotal = data.reduce((s,r)=>s+(Number(r.cost)||0),0);
     const porMes={}, custoPorMes={}, porObra={}, custoPorObra={}, smsCiente={};
+    // Responsável pelo acidente/sinistro (ex.: a própria empresa x terceiro) + o custo de cada um —
+    // pedido do cliente: ver quem responde pelo sinistro e quanto isso custou.
+    const porResponsavel = {};
     data.forEach(r=>{
       if (r.occurrence_date){
         const m = mesNumero(r.occurrence_date);
@@ -2299,10 +2378,14 @@ renderAll();
       const raw = r.raw_data || {};
       const sc = raw['ENGENHEIRO DE SMS CIENTE?'] || '(não informado)';
       smsCiente[sc] = (smsCiente[sc]||0)+1;
+      const resp = raw['RESPONSÁVEL PELO ACIDENTE/SINISTRO'] || '(não informado)';
+      if (!porResponsavel[resp]) porResponsavel[resp] = { qtd: 0, custo: 0 };
+      porResponsavel[resp].qtd += 1;
+      porResponsavel[resp].custo += (Number(r.cost)||0);
     });
     AGG.acidentes = {
       total, custoTotal, porMes, custoPorMes, porObra: topN(porObra,8), custoPorObra: topN(custoPorObra,8),
-      tipoSinistro: topN(tipoSinistroTotal,8), frotaCiente: frotaCienteTotal, smsCiente,
+      tipoSinistro: topN(tipoSinistroTotal,8), frotaCiente: frotaCienteTotal, smsCiente, porResponsavel,
       filtroCiente: filtroAcid.ciente, filtroTipoSinistro: filtroAcid.tipoSinistro,
     };
   }
@@ -2515,7 +2598,12 @@ renderAll();
         porMes: m.porMes || {},
         porMesValor: m.porMesValor || {},
         porCategoria: topN(m.porCategoria || {}, 8),
-        vencidas: Number(m.vencidas)||0
+        vencidas: Number(m.vencidas)||0,
+        porGravidade: m.porGravidade || {},
+        porTermoDesconto: m.porTermoDesconto || {},
+        nic: m.nic || { qtd: 0, valor: 0 },
+        enquadramento: m.enquadramento || [],
+        controleDespachante: m.controleDespachante || {}
       };
     } catch(error){ console.error('multas_rpc', error); }
   }
@@ -2529,7 +2617,8 @@ renderAll();
         valor: Number(b.valor)||0,
         litros: Number(b.litros)||0,
         porMes: b.porMes || {},
-        porObra: topN(b.porObra || {}, 8)
+        porObra: topN(b.porObra || {}, 8),
+        porFormaPagamento: b.porFormaPagamento || {}
       };
     } catch(error){ console.error('abastecimento_rpc', error); }
   }
